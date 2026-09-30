@@ -4,6 +4,7 @@ import { mergeRules, dealerState, HOUSE_DEFAULTS } from './rules.js';
 import { evaluateHand, emptySelection, selectionToList, listToSelection } from './hand.js';
 import { computeLeaderboard } from './stats.js';
 import { buildRecap, recapText } from './recap-core.js';
+import { parseScan, buildScanPrompt } from './scan-core.js';
 
 const eq = (a, b, msg) => {
   const A = JSON.stringify(a), B = JSON.stringify(b);
@@ -116,6 +117,14 @@ export const TESTS = [
     const rooms = [{ code: 'X', players: ['A', 'B', 'C', 'D'], createdAt: 1 }];
     const lb = computeLeaderboard(rooms, { X: [{ type: 'win', winner: 0, shooter: 1, tai: 2, deltas: [16, -8, -4, -4] }] });
     eq(lb.reduce((s, p) => s + p.points, 0), 0);
+  }],
+  ['AI scan answer parsing', 'Gemini JSON is validated: unknown ids dropped, limit hand clears base/suit, result scores correctly.', () => {
+    const r = parseScan('```json\n{"tiles":["East","East","East"],"base":"allPong","suit":"halfColour","limit":null,"flags":{"seatWind":true,"bogus":true},"counts":{"dragonPung":2},"confidence":0.8,"notes":"ok"}\n```');
+    eq(evaluateHand(r.selection, R()).actual, 2 + 2 + 1 + 2); eq(r.warnings.length, 1); eq(r.confidence, 0.8);
+    const l = parseScan('{"base":"allPong","suit":"fullColour","limit":"nineGates","flags":{},"counts":{}}');
+    eq([l.selection.base, l.selection.suit, l.selection.limit], [null, null, 'nineGates']);
+    ok(/allPong/.test(buildScanPrompt(R(), { seatWind: 'East', seatNo: 1 })), 'prompt lists pattern ids');
+    let threw = false; try { parseScan('sorry, I cannot see'); } catch { threw = true; } ok(threw, 'non-JSON rejected');
   }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);

@@ -5,6 +5,9 @@ import { evaluateHand, emptySelection, selectionToList, byId, BASE_HANDS, SUITS,
 import { basePoints } from './scoring.js';
 import { zh } from './prefs.js';
 import { esc } from './ui.js';
+import { scanHand, scanAvailable } from './scan.js';
+import { app } from './data.js';
+const app_mode = () => app.store?.mode || 'demo';
 
 const ICON = {
   allChow: '🀁', pingHu: '⭐', allPong: '🀄', sevenPairs: '🀆', halfTerminals: '🀇', chicken: '🐔',
@@ -15,7 +18,7 @@ const ICON = {
 const QUICK_BONUS = ['flower', 'season', 'animal', 'animalPair', 'dragonPung', 'seatWind', 'roundWind', 'concealed', 'kong', 'flowerSet', 'smallDragons', 'kongWin', 'lastTile', 'robKong'];
 
 export function createPicker(root, { rules, context = () => ({}), onChange = () => {}, allowTaiMode = true } = {}) {
-  const st = { mode: 'quick', sel: emptySelection(), chowKind: 'allChow', directTai: null };
+  const st = { mode: 'quick', sel: emptySelection(), chowKind: 'allChow', directTai: null, scan: { status: 'idle' } };
 
   const ctx = () => ({ selfDraw: false, sameWind: false, seatNo: null, seatWind: '', roundWind: '', ...context() });
   const evaluate = () => {
@@ -119,6 +122,30 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
         <button type="button" data-dtai="${t}" class="${st.directTai === t ? 'on' : ''}">${t}${t === r.taiCap ? ` ${zh('满')}` : ''}<span class="sub">${basePoints(t, r.taiCap)}</span></button>`).join('')}</div>`;
   }
 
+  function scanMode() {
+    const sc = st.scan;
+    if (!scanAvailable()) {
+      return `<div class="scanbox"><div class="bigtile">📷</div><b>AI hand scan is not available here</b>
+        <p class="small muted">${app_mode() === 'cloud' ? 'It is switched off in ⚙️ House rules → AI hand scan.' : 'It needs the shared cloud database (Firebase). In demo mode, pick the patterns by hand.'}</p></div>`;
+    }
+    const conf = sc.result ? Math.round(sc.result.confidence * 100) : 0;
+    return `<div class="scanbox">
+      ${sc.preview ? `<img class="scanprev" src="${sc.preview}" alt="Photo of the winning hand" />` : '<div class="bigtile">📷</div>'}
+      ${sc.status === 'busy' ? '<div class="scanbusy"><span class="spinner"></span> Gemini is reading the tiles…</div>' : ''}
+      ${sc.status === 'error' ? `<div class="perr">${esc(sc.error)}</div>` : ''}
+      ${sc.status === 'done' ? `<div class="scanres">
+          <div class="row-between"><b>✨ AI suggestion applied</b><span class="conf ${conf >= 75 ? 'hi' : conf >= 50 ? 'mid' : 'lo'}">${conf}% sure</span></div>
+          ${sc.result.tiles.length ? `<div class="tilechips">${sc.result.tiles.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+          ${sc.result.notes ? `<p class="small">${esc(sc.result.notes)}</p>` : ''}
+          ${sc.result.warnings.length ? `<p class="small muted">${sc.result.warnings.map(esc).join('<br>')}</p>` : ''}
+          <p class="small"><b>Please check</b> the patterns below before confirming — the AI can misread tiles.</p>
+          <button type="button" class="btn sm" data-mode="quick">✏️ Review / change in Quick mode</button></div>` : ''}
+      <label class="btn primary block big ${sc.status === 'busy' ? 'disabled' : ''}">📷 ${sc.preview ? 'Scan another photo' : 'Take or choose a photo'}<input type="file" accept="image/*" capture="environment" data-scanfile hidden ${sc.status === 'busy' ? 'disabled' : ''} /></label>
+      <ul class="small muted scantips"><li>Lay all tiles flat and face-up, in good light, including exposed sets and bonus tiles.</li>
+        <li>The photo is sent to Google Gemini to read the tiles and is not saved by this app.</li></ul>
+    </div>`;
+  }
+
   function summary(ev) {
     const r = rules();
     const chips = st.mode === 'tai' ? '' : ev.items.map((i) => `<span class="combo">${esc(i.name)}${i.n > 1 ? ` ×${i.n}` : ''} <b>+${i.tai}</b> <button type="button" data-rm="${i.id}" aria-label="Remove ${esc(i.name)}">✕</button></span>`).join('');
@@ -139,10 +166,10 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
     const q = root.querySelector('[data-psearch]')?.value || '';
     root.innerHTML = `
       <div class="pmodes">
-        ${[['quick', '⚡ Quick', '3 steps'], ['limit', '🏮 Limit', 'special'], ['catalog', '📚 Catalog', 'all'], ...(allowTaiMode ? [['tai', '🔢 Tai only', 'direct']] : [])]
+        ${[['quick', '⚡ Quick', '3 steps'], ['scan', '📷 Scan', 'AI'], ['limit', '🏮 Limit', 'special'], ['catalog', '📚 Catalog', 'all'], ...(allowTaiMode ? [['tai', '🔢 Tai', 'direct']] : [])]
           .map(([k, l, s]) => `<button type="button" data-mode="${k}" class="${st.mode === k ? 'on' : ''}">${l}<small>${s}</small></button>`).join('')}
       </div>
-      <div class="pbody">${st.mode === 'quick' ? quick() : st.mode === 'limit' ? limitMode() : st.mode === 'catalog' ? catalog() : taiMode()}</div>
+      <div class="pbody">${st.mode === 'quick' ? quick() : st.mode === 'scan' ? scanMode() : st.mode === 'limit' ? limitMode() : st.mode === 'catalog' ? catalog() : taiMode()}</div>
       <div class="psummary">${summary(ev)}</div>`;
     if (q) { const s = root.querySelector('[data-psearch]'); if (s) { s.value = q; filter(q); } }
     onChange(ev);
@@ -154,6 +181,18 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
   }
 
   root.addEventListener('input', (e) => { if (e.target.matches('[data-psearch]')) filter(e.target.value); });
+  root.addEventListener('change', async (e) => {
+    if (!e.target.matches('[data-scanfile]')) return;
+    const file = e.target.files?.[0]; if (!file) return;
+    st.scan = { status: 'busy', preview: URL.createObjectURL(file) }; render();
+    try {
+      const result = await scanHand(file, ctx());
+      st.sel = result.selection; st.scan = { status: 'done', preview: result.preview, result };
+    } catch (err) {
+      st.scan = { status: 'error', preview: err.preview || st.scan.preview, error: err.message };
+    }
+    render();
+  });
   root.addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (!b || !root.contains(b)) return;
     const s = st.sel; const d = b.dataset;

@@ -331,3 +331,21 @@ input, select, textarea { font-size: 16px; } /* stops iOS zooming into fields */
 button, a { touch-action: manipulation; }
 @media (max-width: 400px) { .capbadge { display: none; } }
 @media (max-width: 360px) { .topacts .icon-btn { display: none; } }
+
+/* AI scan */
+.pmodes { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 380px) { .pmodes button { font-size: 12px; padding: 6px 2px; } }
+.scanbox { text-align: center; display: grid; gap: 10px; }
+.scanbox .bigtile { font-size: 48px; }
+.scanprev { width: 100%; max-height: 260px; object-fit: contain; border-radius: 12px; background: #000; }
+.scanbusy { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; color: var(--felt-2); }
+.spinner { width: 20px; height: 20px; border: 3px solid var(--felt-3); border-top-color: var(--felt-2); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.scanres { text-align: left; background: var(--felt-3); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
+.conf { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.conf.hi { background: #d1fae5; color: #065f46; } .conf.mid { background: #fef3c7; color: #92400e; } .conf.lo { background: #fee2e2; color: #991b1b; }
+.tilechips { display: flex; flex-wrap: wrap; gap: 4px; } .tilechips span { font-size: 12px; background: var(--surface); border-radius: 6px; padding: 2px 6px; }
+.scantips { text-align: left; margin: 0; padding-left: 18px; }
+label.btn.disabled { opacity: .5; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.psummary { position: static; }

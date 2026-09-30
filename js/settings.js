@@ -1,5 +1,5 @@
 // House rules / customisation page.
-import { TAI_CATALOG, CATEGORIES, HOUSE_DEFAULTS, SCORE_LABELS, CAP_OPTIONS, NO_CAP, mergeRules, taiValue } from './rules.js';
+import { TAI_CATALOG, CATEGORIES, HOUSE_DEFAULTS, SCORE_LABELS, CAP_OPTIONS, NO_CAP, AI_MODELS, mergeRules, taiValue } from './rules.js';
 import { prefs, zh, saveRules, setShowZh } from './prefs.js';
 import { basePoints } from './scoring.js';
 
@@ -85,6 +85,13 @@ function page(store) {
       <input type="search" id="taiSearch" placeholder="Search pattern (e.g. Pong, Seven Pairs, Dragon, Flower)…" value="${esc(ui.q)}" />
       <div class="chips2">${[['all', 'All'], ...Object.entries(CATEGORIES)].map(([k, l]) => `<button type="button" data-cat="${k}" class="${ui.cat === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <div id="taiList">${taiList()}</div>
+    </section>
+
+    <section class="card">
+      <h2>📷 AI hand scan (Gemini)</h2>
+      ${row('Photo scan in Record win & Score', 'Take a photo of the winning hand; Google Gemini reads the tiles and fills in the patterns for you to check. Needs cloud mode and Firebase AI Logic switched on.', toggle('aiScan', r.aiScan))}
+      ${row('Gemini model', 'Change only if a model stops working or is too slow.',
+        sel('aiModel', [...Object.entries(AI_MODELS), ...(AI_MODELS[r.aiModel] ? [] : [[r.aiModel, r.aiModel]])], r.aiModel))}
     </section>
 
     <section class="card">

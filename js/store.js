@@ -7,7 +7,7 @@
 //   settings/house               shared house rules
 import { firebaseConfig } from './config.js';
 
-const FB = 'https://www.gstatic.com/firebasejs/10.12.2';
+const FB = 'https://www.gstatic.com/firebasejs/12.19.0';
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 export function randomCode(len = 6) {
@@ -39,6 +39,14 @@ async function createFirebaseStore() {
 
   return {
     mode: 'cloud',
+    // Gemini via Firebase AI Logic (Gemini Developer API backend). Loaded only when first used.
+    async generate(modelName, parts, generationConfig = {}) {
+      const m = await import(`${FB}/firebase-ai.js`);
+      const ai = m.getAI(app, { backend: new m.GoogleAIBackend() });
+      const model = m.getGenerativeModel(ai, { model: modelName, generationConfig });
+      const res = await model.generateContent(parts);
+      return res.response.text();
+    },
     async createRoom(data) {
       for (let i = 0; i < 5; i++) {
         const code = randomCode();

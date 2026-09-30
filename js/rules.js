@@ -58,8 +58,10 @@ export const HOUSE_DEFAULTS = {
   winCircumstance: false,       // +1 Tai special wins (off by default)
   doubleWind: '1x',             // seat wind = prevailing wind: count once (1x) or twice (2x)
   scoreLabel: 'pts',
-  finalWallStacks: 12,
-  leaderboardResetAt: 0,         // rankings ignore games created before this time          // pay-all fresh-tile window (stacks left in the wall)
+  finalWallStacks: 12,           // pay-all fresh-tile window (stacks left in the wall)
+  leaderboardResetAt: 0,         // rankings ignore games created before this time
+  aiScan: true,                  // 📷 Gemini hand scan in Record win / Score
+  aiModel: 'gemini-3.8-flash',   // Gemini model used for the scan
   autoDealer: true,             // track dealer: dealer wins -> stays (连庄), else rotates
   drawRule: 'stay',             // on a draw: 'stay' (连庄) or 'rotate'
   exposedKong: DEFAULT_SETTINGS.exposedKong,       // instant: each opponent pays
@@ -70,6 +72,7 @@ export const HOUSE_DEFAULTS = {
   tai: {},                      // overrides: { [catalogId]: number }
 };
 
+export const AI_MODELS = { 'gemini-3.8-flash': 'Gemini 3.8 Flash (best, default)', 'gemini-3.5-flash': 'Gemini 3.5 Flash', 'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite (fastest)' };
 export const SCORE_LABELS = { pts: 'PTS (Points)', chips: 'Chips (筹码)', poin: 'Poin' };
 export const CAP_OPTIONS = [3, 4, 5, 6, 7, 8, 10, 13]; // 13 = no cap
 export const NO_CAP = 13;
@@ -86,6 +89,8 @@ export function mergeRules(saved = {}) {
   r.baoMultiplier = int(r.baoMultiplier, HOUSE_DEFAULTS.baoMultiplier, 1, 12);
   r.finalWallStacks = int(r.finalWallStacks, HOUSE_DEFAULTS.finalWallStacks, 0, 40);
   r.leaderboardResetAt = Math.max(0, Math.floor(Number(r.leaderboardResetAt) || 0));
+  r.aiScan = r.aiScan !== false;
+  r.aiModel = /^[a-z0-9.\-]{3,60}$/.test(String(r.aiModel || '')) ? r.aiModel : HOUSE_DEFAULTS.aiModel;
   delete r.addedKong; delete r.exposedKongDiscarderPaysAll;
   r.winCircumstance = !!r.winCircumstance;
   r.autoDealer = !!r.autoDealer;
