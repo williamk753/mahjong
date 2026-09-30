@@ -97,8 +97,9 @@ function render($app) {
       <button data-act="instant"><span>⚡</span><b>Instant payout</b><small>Kongs & flowers</small></button>
       <button data-act="draw"><span>🔁</span><b>Draw round</b><small>Dead wall (0 pts)</small></button>
       <button data-act="adjust"><span>⚖️</span><b>Manual adjust</b><small>${zh('调分')} zero-sum</small></button>
-      <button data-act="help"><span>💡</span><b>How scores update</b><small>4 ways</small></button>
-    </div>`}
+      <button data-act="reset" class="warn"><span>🔄</span><b>Reset scores</b><small>everyone back to ${start()}</small></button>
+    </div>
+    <button type="button" class="linkbtn" data-act="help">💡 How do scores update?</button>`}
     ${v.showHelp ? `<section class="card help"><h3>4 ways to update scores</h3><ol class="steps small">
       <li><b>Record Win:</b> pick the winner, method (self-draw, discard, pay-all) and patterns. Points = 2<sup>Tai</sup> (capped at ${cap()}) and are moved automatically.</li>
       <li><b>Instant payout:</b> exposed/concealed kongs and flower sets are paid right away.</li>
@@ -107,10 +108,9 @@ function render($app) {
 
     <section class="card">
       <div class="row-between"><h2>Audit & history</h2><span class="small muted">${rounds} rounds · ${payouts} payouts</span></div>
-      <div class="actgrid small4">
+      <div class="actgrid three">
         <button data-act="log"><span>📜</span><b>Audit log</b><small>${v.events.length} entries</small></button>
         ${ro ? '' : `<button data-act="undo"><span>↩️</span><b>Undo last</b><small>void latest</small></button>
-        <button data-act="reset"><span>0️⃣</span><b>Reset points</b><small>back to ${start()}</small></button>
         <button data-act="finish" class="good"><span>🏁</span><b>Finish game</b><small>recap & share</small></button>`}
       </div>
       ${ro ? `<a class="btn block" href="#/t/${esc(r.code)}/recap">🏆 View recap</a>` : `<button class="btn block danger" data-act="quit">End / quit without finishing</button>`}
@@ -172,8 +172,8 @@ async function onClick(e, $app) {
   if (act === 'reset') {
     const a = audit(v.events);
     if (a.balances.every((x) => x === 0)) return toast('Scores are already at the starting points');
-    if (!await confirmBox({ title: 'Reset all points?', text: `Everyone goes back to ${start()} with a zero-sum adjustment. History is kept.`, ok: 'Reset points', danger: true })) return;
-    return save({ type: 'adjust', deltas: a.balances.map((x) => -x), reason: 'reset', reasonText: 'Reset all scores to starting points' }, 'Points reset');
+    if (!await confirmBox({ title: '🔄 Reset all scores?', text: `Every player goes back to <b>${start()}</b>. This is saved as one zero-sum adjustment, so the history is kept — you can undo it with <b>Undo last</b>.`, ok: 'Reset scores', danger: true })) return;
+    return save({ type: 'adjust', deltas: a.balances.map((x) => -x), reason: 'reset', reasonText: 'Reset all scores to starting points' }, 'Scores reset — tap Undo last to revert');
   }
   if (act === 'finish') {
     if (!await confirmBox({ title: 'Finish this game?', text: 'The game is closed and a recap with standings and share options is created.', ok: '🏁 Finish game' })) return;

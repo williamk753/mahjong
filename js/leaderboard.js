@@ -1,8 +1,9 @@
 // Ranking page: player statistics & ranking across games.
 import { computeLeaderboard, rankPlayers, SORTS, PERIODS, roomsInPeriod } from './stats.js';
 import { prefs, unit } from './prefs.js';
-import { getAll, recent } from './data.js';
-import { esc, sign, pct, avatar } from './ui.js';
+import { app, getAll, recent, invalidate } from './data.js';
+import { saveRules } from './prefs.js';
+import { esc, sign, pct, avatar, confirmBox, toast } from './ui.js';
 
 const PREF_KEY = 'mjsg-lb-prefs';
 let ui = { period: 'all', sort: 'points', scope: 'all' };
@@ -42,7 +43,7 @@ export async function renderLeaderboard($app, force = false) {
     const total = list.reduce((s, p) => s + p.points, 0);
     const u = esc(unit());
     $app.innerHTML = `
-      <div class="pagehead row-between"><div><h1>🏆 Mahjong leaderboard</h1><p class="muted">${games} game${games === 1 ? '' : 's'} recorded · ${d.players.length} players</p></div><button class="btn sm" data-refresh aria-label="Refresh">↻</button></div>
+      <div class="pagehead row-between"><div><h1>🏆 Mahjong leaderboard</h1><p class="muted">${games} game${games === 1 ? '' : 's'} recorded · ${d.players.length} players</p></div><span class="row-gap-h"><button class="btn sm danger" data-lbreset>Reset</button><button class="btn sm" data-refresh aria-label="Refresh">↻</button></span></div>
       <div class="chips2">${Object.entries(PERIODS).map(([k, p]) => `<button data-period="${k}" class="${ui.period === k ? 'on' : ''}">${p.label}</button>`).join('')}</div>
       <div class="chips2"><span class="small muted">Rank by:</span>${Object.entries(SORTS).map(([k, s]) => `<button data-sort="${k}" class="${ui.sort === k ? 'on' : ''}">${s.label}</button>`).join('')}</div>
       <label class="check small"><input type="checkbox" data-scope ${ui.scope === 'mine' ? 'checked' : ''}/> Only games opened on this phone</label>
@@ -57,14 +58,19 @@ export async function renderLeaderboard($app, force = false) {
             ${stat('Pay-all wins', p.payAllWins)}${stat('Shot', `${p.shots} (${pct(p.shotRate)})`, 'Times discarded the winning tile')}${stat('Kongs', p.kongs)}${stat('#1 finish', p.tableWins)}
           </div></li>`).join('')}</ol>
       <p class="small ${total === 0 ? 'pos' : 'neg'}">${total === 0 ? '✓ Zero-sum check: all players’ points add up to 0.' : `✗ Points add up to ${total}.`}</p>`}
-      ${prefs.rules.leaderboardResetAt ? `<p class="small muted">Rankings were reset on ${new Date(prefs.rules.leaderboardResetAt).toLocaleDateString()} — older games are not counted.</p>` : ''}`;
+      ${prefs.rules.leaderboardResetAt ? `<p class="small muted">Rankings were reset on ${new Date(prefs.rules.leaderboardResetAt).toLocaleString()} — older games are not counted. <button class="btn sm" data-lbundo>Undo reset</button></p>` : ''}`;
   };
   draw();
-  $app.onclick = (e) => {
+  $app.onclick = async (e) => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.period) { ui.period = b.dataset.period; savePrefs(); return draw(); }
     if (b.dataset.sort) { ui.sort = b.dataset.sort; savePrefs(); return draw(); }
-    if (b.dataset.refresh !== undefined) renderLeaderboard($app, true);
+    if (b.dataset.refresh !== undefined) return renderLeaderboard($app, true);
+    if (b.dataset.lbreset !== undefined) {
+      if (!await confirmBox({ title: 'Reset all rankings to 0?', text: 'The leaderboard, home champions and career stats will only count games from now on. No games are deleted and you can undo this.', ok: 'Reset rankings', danger: true })) return;
+      await saveRules(app.store, { ...prefs.rules, leaderboardResetAt: Date.now() }); invalidate(); toast('Rankings reset'); return renderLeaderboard($app, true);
+    }
+    if (b.dataset.lbundo !== undefined) { await saveRules(app.store, { ...prefs.rules, leaderboardResetAt: 0 }); invalidate(); toast('Reset undone'); return renderLeaderboard($app, true); }
   };
   $app.onchange = (e) => { if (e.target.matches('[data-scope]')) { ui.scope = e.target.checked ? 'mine' : 'all'; savePrefs(); draw(); } };
 }
