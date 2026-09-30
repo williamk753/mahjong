@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#064e3b" />
+  <meta name="description" content="Live Singapore mahjong score tracker: 2^Tai scoring capped at 5 Tai, instant kong payouts, pay-all, zero-sum audit and leaderboards." />
+  <title>Mahjong SG Tracker</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Mahjong" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a href="#/" class="brand"><span class="logo">🀄</span><span class="bt"><b>Mahjong Score</b><span class="sub"><span id="modeBadge" class="badge">Connecting…</span></span></span></a>
+    <span id="capBadge" class="capbadge">TAI 5</span>
+    <span class="topacts"><a href="#/ranking" class="icon-btn light" aria-label="Leaderboard">🏆</a><a href="#/new" class="btn gold sm">＋ New</a></span>
+  </header>
+  <main id="app"><p class="muted center pad">Loading…</p></main>
+  <nav class="bottomnav" aria-label="Main">
+    <a href="#/" data-nav="home"><span>🏠</span>Home</a>
+    <a href="#/game" data-nav="game"><span>▶️</span>Game</a>
+    <a href="#/score" data-nav="score" class="center"><span>🧮</span>Score</a>
+    <a href="#/ranking" data-nav="ranking"><span>🏆</span>Ranking</a>
+    <a href="#/more" data-nav="more"><span>⋯</span>More</a>
+  </nav>
+  <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

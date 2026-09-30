@@ -1,0 +1,14 @@
+{
+  "name": "Mahjong SG Tracker",
+  "short_name": "Mahjong",
+  "description": "Live Singapore mahjong score tracker — 2^Tai scoring, instant payouts, pay-all and leaderboards.",
+  "start_url": "./#/",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f3ee",
+  "theme_color": "#064e3b",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

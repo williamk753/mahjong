@@ -1,0 +1,74 @@
+rules_version = '2';
+// Paste into Firebase Console > Firestore Database > Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // Leaderboard / backup read all events across games (collection-group query). Read-only.
+    match /{path=**}/events/{eventId} {
+      allow read: if signedIn();
+    }
+
+    // Shared house rules (Rules page).
+    match /settings/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn() && id == 'house'
+        && request.resource.data.taiCap is int
+        && request.resource.data.taiCap >= 1 && request.resource.data.taiCap <= 13
+        && request.resource.data.minTai is int;
+    }
+
+    // Player directory.
+    match /players/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 30;
+      allow delete: if false;
+    }
+
+    // Games (a.k.a. rooms / tables).
+    match /rooms/{code} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.players is list
+        && request.resource.data.players.size() == 4
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 60;
+      // Only these fields may change after creation; games are never deleted.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['settings', 'status', 'finishedAt', 'location', 'notes', 'scorekeeper'])
+        && request.resource.data.settings.taiCap is int
+        && request.resource.data.settings.taiCap >= 1
+        && request.resource.data.settings.taiCap <= 13
+        && request.resource.data.get('status', 'active') in ['active', 'completed', 'cancelled'];
+      allow delete: if false;
+
+      match /events/{eventId} {
+        allow read: if signedIn();
+
+        // Server-side ZERO-SUM enforcement: every event's 4 deltas must be integers summing to 0.
+        allow create: if signedIn()
+          && request.resource.data.type in ['win', 'instant', 'draw', 'adjust', 'kong', 'bonus']
+          && request.resource.data.deltas is list
+          && request.resource.data.deltas.size() == 4
+          && request.resource.data.deltas[0] is int
+          && request.resource.data.deltas[1] is int
+          && request.resource.data.deltas[2] is int
+          && request.resource.data.deltas[3] is int
+          && request.resource.data.deltas[0] + request.resource.data.deltas[1]
+             + request.resource.data.deltas[2] + request.resource.data.deltas[3] == 0
+          && request.resource.data.voided is bool;
+
+        // Append-only ledger: only the void flag (and edit link) may change; nothing is ever deleted.
+        allow update: if signedIn()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['voided', 'voidedAt', 'replacedBy', 'voidReason'])
+          && request.resource.data.voided is bool;
+        allow delete: if false;
+      }
+    }
+  }
+}
