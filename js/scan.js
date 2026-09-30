@@ -21,12 +21,16 @@ export async function prepareImage(file, max = 1600) {
 
 function friendlyError(err) {
   const m = String(err?.message || err);
-  if (/API has not been used|not enabled|SERVICE_DISABLED|firebasevertexai|firebaseml/i.test(m)) return 'Gemini is not switched on yet: Firebase console → AI Logic → Get started → Gemini Developer API.';
-  if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) return 'The free Gemini limit is used up for now — try again later, or pick the patterns by hand.';
-  if (/not found|404|model/i.test(m)) return `The AI model "${prefs.rules.aiModel}" is not available. Choose another model in ⚙️ House rules → AI hand scan.`;
-  if (/network|fetch|Failed to fetch|offline/i.test(m)) return 'No internet connection — pick the patterns by hand.';
-  if (/SAFETY|blocked/i.test(m)) return 'The photo was blocked by the AI safety filter. Try a clearer photo of just the tiles.';
-  return 'Scan failed: ' + m;
+  const detail = ` (Details: ${m.replace(/\s+/g, ' ').slice(0, 220)})`;
+  let msg;
+  if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) msg = 'The free Gemini limit is used up for now — try again later, or pick the patterns by hand.';
+  else if (/404|NOT_FOUND|is not found|not supported for generateContent|Unknown model/i.test(m)) msg = `The AI model "${prefs.rules.aiModel}" is not available. Choose another model in ⚙️ House rules → AI hand scan.`;
+  else if (/API_KEY_SERVICE_BLOCKED|referer|referrer|API key not valid|are blocked/i.test(m)) msg = 'Your Firebase API key is blocking Gemini. Google Cloud console → APIs & Services → Credentials → Browser key: allow “Firebase AI Logic API” and your site address.';
+  else if (/SERVICE_DISABLED|has not been used|is disabled|not been enabled|PERMISSION_DENIED/i.test(m)) msg = 'Gemini is not switched on for this project yet: Firebase console → AI Logic → Settings → enable Gemini Developer API (and “Firebase AI Logic API” in Google Cloud).';
+  else if (/Failed to fetch|NetworkError|network|offline/i.test(m)) msg = 'Could not reach Gemini — check the internet connection.';
+  else if (/SAFETY|blocked/i.test(m)) msg = 'The photo was blocked by the AI safety filter. Try a clearer photo of just the tiles.';
+  else msg = 'Scan failed.';
+  return msg + detail;
 }
 
 /** Returns { selection, tiles, notes, confidence, warnings, preview } */
