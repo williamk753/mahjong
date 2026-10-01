@@ -2,13 +2,16 @@
 import { createPicker } from './picker.js';
 import { prefs, zh, unit } from './prefs.js';
 import { winDeltas } from './scoring.js';
-import { esc, sign } from './ui.js';
+import { esc, sign, closeSheet } from './ui.js';
+import { openWizard } from './wizard.js';
 
 const st = { method: 'self' };
 
 export function renderCalc($app) {
   $app.innerHTML = `
     <div class="pagehead"><h1>🧮 Score calculator</h1><p class="muted">Work out Tai and points for any hand — nothing is saved.</p></div>
+    <button class="bigwin" data-help>🧭 Help me count my hand <span>Don't know the patterns? Answer easy questions about your tiles</span></button>
+    <h3>Or pick the patterns yourself</h3>
     <section class="card">
       <div class="methods">
         <button type="button" data-m="self" class="${st.method === 'self' ? 'on' : ''}"><b>Self-draw ${zh('自摸')}</b><small>All 3 pay 2×</small></button>
@@ -37,6 +40,7 @@ export function renderCalc($app) {
   });
   show(picker.evaluate());
   $app.onclick = (e) => {
+    if (e.target.closest('[data-help]')) return openWizard({ mode: 'calc', rules: prefs.rules, onSubmit: () => { closeSheet(); return true; } });
     const b = e.target.closest('[data-m]'); if (!b) return;
     st.method = b.dataset.m;
     $app.querySelectorAll('[data-m]').forEach((x) => x.classList.toggle('on', x === b));

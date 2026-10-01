@@ -19,7 +19,7 @@ export const newId = (prefix = '') => prefix + randomCode(12).toLowerCase();
 
 export const isDemo = !firebaseConfig.apiKey || firebaseConfig.apiKey === 'REPLACE_ME';
 
-const ROOM_EDITABLE = ['settings', 'status', 'finishedAt', 'location', 'notes', 'scorekeeper'];
+const ROOM_EDITABLE = ['settings', 'status', 'finishedAt', 'location', 'notes', 'scorekeeper', 'hostUid', 'hostName', 'lastChange', 'startedAt', 'hasPin'];
 
 /* ---------------- Firebase ---------------- */
 async function createFirebaseStore() {
@@ -39,6 +39,21 @@ async function createFirebaseStore() {
 
   return {
     mode: 'cloud',
+    uid,
+    /* ---- members (who is in the room, which seat) ---- */
+    async joinRoom(code, m) { await fs.setDoc(fs.doc(db, 'rooms', code, 'members', uid()), { ...m, uid: uid(), at: Date.now() }, { merge: true }); },
+    watchMembers(code, cb) { return fs.onSnapshot(fs.collection(db, 'rooms', code, 'members'), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })))); },
+    /* ---- player requests (win claims, payouts) ---- */
+    async addRequest(code, r) { const ref = await fs.addDoc(fs.collection(db, 'rooms', code, 'requests'), { ...r, byUid: uid(), status: 'pending', createdAt: Date.now() }); return ref.id; },
+    watchRequests(code, cb) { return fs.onSnapshot(fs.query(fs.collection(db, 'rooms', code, 'requests'), fs.orderBy('createdAt', 'asc')), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })))); },
+    async updateRequest(code, id, patch) { await fs.updateDoc(fs.doc(db, 'rooms', code, 'requests', id), { ...patch, decidedAt: Date.now() }); },
+    /* ---- host PIN: stored where nobody can read it; Firestore rules compare it on claim ---- */
+    async setHostPin(code, pin) { await fs.setDoc(fs.doc(db, 'rooms', code, 'secret', 'pin'), { pin: String(pin) }); },
+    async claimHost(code, pin, name) {
+      await fs.setDoc(fs.doc(db, 'rooms', code, 'claims', uid()), { pin: String(pin), at: Date.now() });
+      await fs.updateDoc(roomRef(code), { hostUid: uid(), hostName: name || 'Host' });
+    },
+    watchHouseRules(cb) { return fs.onSnapshot(fs.doc(db, 'settings', 'house'), (s) => s.exists() && cb(s.data())); },
     // Gemini via Firebase AI Logic (Gemini Developer API backend). Loaded only when first used.
     async generate(modelName, parts, generationConfig = {}) {
       const m = await import(`${FB}/firebase-ai.js`);
@@ -52,7 +67,7 @@ async function createFirebaseStore() {
         const code = randomCode();
         const snap = await fs.getDoc(roomRef(code));
         if (snap.exists()) continue;
-        await fs.setDoc(roomRef(code), { status: 'active', ...data, createdAt: Date.now(), createdBy: uid() });
+        await fs.setDoc(roomRef(code), { status: 'active', ...data, createdAt: Date.now(), createdBy: uid(), hostUid: uid() });
         return code;
       }
       throw new Error('Could not allocate a game code, try again');
@@ -115,7 +130,7 @@ async function createFirebaseStore() {
         const { code, ...rest } = r;
         const snap = await fs.getDoc(roomRef(code));
         if (snap.exists()) continue;
-        await fs.setDoc(roomRef(code), rest); n++;
+        await fs.setDoc(roomRef(code), { ...rest, hostUid: uid() }); n++;
         let batch = fs.writeBatch(db); let k = 0;
         for (const ev of (data.eventsByRoom?.[code] || [])) {
           const { id, ...e } = ev;
@@ -132,7 +147,7 @@ async function createFirebaseStore() {
       return snap.exists() ? snap.data() : null;
     },
     async saveHouseRules(rules) {
-      await fs.setDoc(fs.doc(db, 'settings', 'house'), { ...rules, updatedAt: Date.now(), by: uid() });
+      await fs.setDoc(fs.doc(db, 'settings', 'house'), { ...rules, updatedAt: Date.now(), by: uid(), lastChange: rules.lastChange ? { ...rules.lastChange, byUid: uid() } : null });
     },
   };
 }
@@ -150,10 +165,24 @@ function createLocalStore() {
 
   return {
     mode: 'demo',
+    // Demo: one identity per browser tab, so two tabs can play host + player on one computer.
+    uid: () => { try { let id = sessionStorage.getItem('mjsg-demo-uid'); if (!id) { id = newId('u_'); sessionStorage.setItem('mjsg-demo-uid', id); } return id; } catch { return 'u_local'; } },
+    async joinRoom(code, m) { const db = load(); const r = db.rooms[code]; r.members = { ...(r.members || {}), [this.uid()]: { ...(r.members?.[this.uid()] || {}), ...m, uid: this.uid(), at: Date.now() } }; save(db); notify(); },
+    watchMembers(code, cb) { return watch(() => cb(Object.entries(load().rooms[code]?.members || {}).map(([id, m]) => ({ id, ...m })))); },
+    async addRequest(code, r) { const db = load(); const id = newId('r_'); const rm = db.rooms[code]; rm.requests = [...(rm.requests || []), { ...r, id, byUid: this.uid(), status: 'pending', createdAt: Date.now() }]; save(db); notify(); return id; },
+    watchRequests(code, cb) { return watch(() => cb([...(load().rooms[code]?.requests || [])])); },
+    async updateRequest(code, id, patch) { const db = load(); const q = (db.rooms[code].requests || []).find((x) => x.id === id); if (q) Object.assign(q, patch, { decidedAt: Date.now() }); save(db); notify(); },
+    async setHostPin(code, pin) { const db = load(); db.rooms[code].secretPin = String(pin); save(db); },
+    async claimHost(code, pin, name) {
+      const db = load(); const r = db.rooms[code];
+      if (r.secretPin == null || String(pin) !== r.secretPin) { const e = new Error('Wrong PIN'); e.code = 'permission-denied'; throw e; }
+      r.room.hostUid = this.uid(); r.room.hostName = name || 'Host'; save(db); notify();
+    },
+    watchHouseRules(cb) { const h = () => { try { const x = JSON.parse(localStorage.getItem('mjsg-demo-house')); if (x) cb(x); } catch {} }; window.addEventListener('storage', (e) => { if (e.key === 'mjsg-demo-house') h(); }); return () => {}; },
     async createRoom(data) {
       const db = load();
       let code; do { code = randomCode(); } while (db.rooms[code]);
-      db.rooms[code] = { room: { status: 'active', ...data, createdAt: Date.now() }, events: [] };
+      db.rooms[code] = { room: { status: 'active', ...data, createdAt: Date.now(), hostUid: this.uid() }, events: [] };
       save(db); notify();
       return code;
     },
@@ -213,7 +242,7 @@ function createLocalStore() {
       try { return JSON.parse(localStorage.getItem('mjsg-demo-house')); } catch { return null; }
     },
     async saveHouseRules(rules) {
-      try { localStorage.setItem('mjsg-demo-house', JSON.stringify(rules)); } catch {}
+      try { localStorage.setItem('mjsg-demo-house', JSON.stringify({ ...rules, lastChange: rules.lastChange ? { ...rules.lastChange, byUid: this.uid() } : null })); } catch {}
     },
   };
 }

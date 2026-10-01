@@ -1,6 +1,7 @@
 // App shell: boot, router, header & bottom navigation.
 import { createStore, isDemo } from './store.js';
-import { prefs, loadRules, applyDisplay } from './prefs.js';
+import { prefs, loadRules, applyDisplay, applyRemoteRules } from './prefs.js';
+import { notify, openNotifications, updateBell } from './notify.js';
 import { app } from './data.js';
 import { esc, closeSheet } from './ui.js';
 import { renderHome, renderGameTab } from './home.js';
@@ -80,12 +81,29 @@ async function route() {
   }
 }
 
+// Tell every phone when someone changes the shared house rules.
+function watchRules() {
+  let seen = prefs.rules.lastChange?.at || 0;
+  app.store.watchHouseRules?.((data) => {
+    const lc = data.lastChange;
+    const changed = lc && lc.at > seen;
+    if (changed) seen = lc.at;
+    if (!changed) return;
+    applyRemoteRules(data); header();
+    if (lc.byUid && lc.byUid === app.store.uid?.()) return; // my own change
+    notify({ icon: '⚙️', title: `${lc.byName || 'Someone'} changed the house rules`, body: lc.summary || '', link: '#/settings', key: `rules-${lc.at}` });
+    if (location.hash.startsWith('#/settings')) route();
+  });
+}
+
 (async function boot() {
   applyDisplay();
   header();
   window.addEventListener('hashchange', route);
   route();
-  try { app.store = await createStore(); await loadRules(app.store); }
+  updateBell();
+  document.getElementById('bell')?.addEventListener('click', openNotifications);
+  try { app.store = await createStore(); await loadRules(app.store); watchRules(); }
   catch (err) { console.error(err); app.storeError = err; }
   header();
   const page = location.hash.replace(/^#\/?/, '').split('/')[0] || '';

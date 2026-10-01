@@ -10,7 +10,7 @@ function gameCard(r, evs) {
   const a = audit(evs || []);
   const top = r.players[a.balances.indexOf(Math.max(...a.balances))];
   const st = r.status || 'active';
-  return `<a class="gamecard" href="#/t/${esc(r.code)}${st === 'active' ? '' : '/recap'}">
+  return `<a class="gamecard" href="#/t/${esc(r.code)}${st === 'active' || st === 'lobby' ? '' : '/recap'}">
     <div class="row-between"><b>${esc(gameNumber(r))}</b><span class="status ${esc(st)}">${st === 'cancelled' ? 'ended' : esc(st)}</span></div>
     <div class="small muted">${fmtDate(r.createdAt)}${r.location ? ` · ${esc(r.location)}` : ''}${r.name ? ` · ${esc(r.name)}` : ''}</div>
     <div class="small">${r.players.map(esc).join(' · ')}</div>
@@ -34,7 +34,7 @@ export async function renderHome($app) {
   const all = rankPlayers(computeLeaderboard(roomsInPeriod(d.rooms, d.eventsByRoom, 0, hr.leaderboardResetAt), d.eventsByRoom, d.players), 'points').filter((p) => p.games > 0);
   const month = rankPlayers(computeLeaderboard(roomsInPeriod(d.rooms, d.eventsByRoom, PERIODS.month.since(), hr.leaderboardResetAt), d.eventsByRoom, d.players), 'points').filter((p) => p.games > 0);
   const rooms = [...d.rooms].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  const active = rooms.filter((r) => (r.status || 'active') === 'active');
+  const active = rooms.filter((r) => ['active', 'lobby'].includes(r.status || 'active'));
   const u = esc(unit());
   const champ = (p, label, sub, cls) => p ? `<a class="champ ${cls}" href="#/players/${esc(p.id || '')}"><div class="small">${label}</div>${avatar(p.name)}<b>${esc(p.name)}</b>${p.handle ? `<small>“${esc(p.handle)}”</small>` : ''}<div class="champpts">${sign(p.points)} ${u}</div><small>${sub(p)}</small></a>`
     : `<div class="champ ${cls} empty"><div class="small">${label}</div><small>No games yet</small></div>`;
@@ -57,13 +57,13 @@ export async function renderHome($app) {
 export async function renderGameTab($app) {
   const cur = currentGame();
   if (cur) {
-    try { const r = await app.store.getRoom(cur); if (r && (r.status || 'active') === 'active') { location.replace(`#/t/${cur}`); return; } } catch {}
+    try { const r = await app.store.getRoom(cur); if (r && ['active', 'lobby'].includes(r.status || 'active')) { location.replace(`#/t/${cur}`); return; } } catch {}
     setCurrentGame('');
   }
   $app.innerHTML = '<p class="muted center pad">Loading…</p>';
   let d = null; try { d = await getAll(true); } catch {}
   const rooms = d ? [...d.rooms].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : [];
-  const active = rooms.filter((r) => (r.status || 'active') === 'active');
+  const active = rooms.filter((r) => ['active', 'lobby'].includes(r.status || 'active'));
   const last = rooms.find((r) => r.status === 'completed');
   $app.innerHTML = `
     <section class="card center emptytable"><div class="bigtile">🀄</div><h2>No game open on this phone</h2>

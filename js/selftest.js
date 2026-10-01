@@ -5,6 +5,7 @@ import { evaluateHand, emptySelection, selectionToList, listToSelection } from '
 import { computeLeaderboard } from './stats.js';
 import { buildRecap, recapText } from './recap-core.js';
 import { parseScan, buildScanPrompt } from './scan-core.js';
+import { answersToSelection, blankAnswers } from './wizard-core.js';
 
 const eq = (a, b, msg) => {
   const A = JSON.stringify(a), B = JSON.stringify(b);
@@ -125,6 +126,28 @@ export const TESTS = [
     eq([l.selection.base, l.selection.suit, l.selection.limit], [null, null, 'nineGates']);
     ok(/allPong/.test(buildScanPrompt(R(), { seatWind: 'East', seatNo: 1 })), 'prompt lists pattern ids');
     let threw = false; try { parseScan('sorry, I cannot see'); } catch { threw = true; } ok(threw, 'non-JSON rejected');
+  }],
+  ['Guided helper: beginner answers', 'Plain answers (runs, one suit, seat flower, concealed) become the right patterns and Tai.', () => {
+    const A = (o) => ({ ...blankAnswers(), ...o });
+    const ev = (a, ctx) => evaluateHand(answersToSelection(a, ctx).selection, R(), ctx);
+    // runs + normal pair + 2-sided wait + no flowers = Ping Hu 4
+    eq(ev(A({ shape: 'chow', pairOk: true, twoSided: true, suit: 'mixed' }), { seatNo: 1 }).actual, 4);
+    // same but with own flower -> All Chow 1 + flower 1
+    eq(ev(A({ shape: 'chow', pairOk: true, twoSided: true, suit: 'mixed', flowers: [1] }), { seatNo: 1 }).actual, 2);
+    // flower that is not your seat number scores nothing
+    eq(ev(A({ shape: 'pong', suit: 'mixed', flowers: [3] }), { seatNo: 1 }).actual, 2);
+    // all pong + full colour + concealed + 1 kong = 2+4+1+1
+    eq(ev(A({ shape: 'pong', suit: 'full', concealed: true, kongs: 1 }), { seatNo: 2 }).actual, 8);
+    // 3 dragon sets -> Big Three Dragons limit (7)
+    eq(ev(A({ shape: 'mixed', dragons: 3 }), {}).actual, 7);
+    // 2 dragon sets + dragon pair -> 2 + small three dragons 1
+    eq(ev(A({ shape: 'mixed', dragons: 2, dragonPair: true }), {}).actual, 3);
+    // animals: cat + mouse = 2 animals + 1 pair (2) = 4
+    eq(ev(A({ shape: 'pong', animals: ['cat', 'mouse'] }), {}).actual, 2 + 2 + 2);
+    // all 8 bonus tiles -> Eight Flowers
+    eq(answersToSelection(A({ shape: 'mixed', flowers: [1, 2, 3, 4], seasons: [1, 2, 3, 4] }), { seatNo: 1 }).selection.limit, 'eightFlowers');
+    // seat wind = round wind counts once by default
+    eq(ev(A({ shape: 'pong', seatWind: true, roundWind: true }), { sameWind: true }).actual, 3);
   }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);

@@ -1,5 +1,5 @@
 // Start a new game: pick 4 seats from the player directory, table settings, launch.
-import { prefs, zh } from './prefs.js';
+import { prefs, zh, myName, setMyName } from './prefs.js';
 import { tableSettings } from './rules.js';
 import { app, getRoster, invalidateRoster, setCurrentGame, invalidate } from './data.js';
 import { esc, toast, sheet, closeSheet, WIND_EN, WIND_ZH } from './ui.js';
@@ -8,7 +8,7 @@ export async function renderNewGame($app) {
   $app.innerHTML = '<p class="muted center pad">Loading players…</p>';
   let roster = [];
   try { roster = await getRoster(true); } catch (err) { console.error(err); }
-  const f = { seats: [null, null, null, null], start: 0, keeper: '', location: '', notes: '', name: '' };
+  const f = { seats: [null, null, null, null], start: 0, keeper: myName(), location: '', notes: '', name: '', pin: '', lobby: true };
   const hr = prefs.rules;
 
   const draw = () => {
@@ -32,8 +32,12 @@ export async function renderNewGame($app) {
         <div class="grid2">
           <label class="field"><span>Game name</span><input type="text" data-f="name" maxlength="60" value="${esc(f.name)}" placeholder="Friday night mahjong" /></label>
           <label class="field"><span>Starting score <small class="muted">(usually 0 or 200 / 500 chips)</small></span><input type="number" data-f="start" step="1" value="${f.start}" /></label>
-          <label class="field"><span>Scorekeeper</span><input type="text" data-f="keeper" maxlength="30" value="${esc(f.keeper)}" placeholder="Who is entering scores" /></label>
+          <label class="field"><span>Host name <small class="muted">(the one phone that records scores)</small></span><input type="text" data-f="keeper" maxlength="30" value="${esc(f.keeper)}" placeholder="Your name" /></label>
           <label class="field"><span>Location</span><input type="text" data-f="location" maxlength="60" value="${esc(f.location)}" placeholder="e.g. Club house, Wendy's place" /></label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Host PIN <small class="muted">(optional, 4–8 digits)</small></span><input type="password" inputmode="numeric" data-f="pin" maxlength="8" value="${esc(f.pin)}" placeholder="lets you take control from another phone" /></label>
+          <label class="check"><input type="checkbox" data-lobby ${f.lobby ? 'checked' : ''}/> Open a join screen first (QR code — players join on their own phones, like Kahoot)</label>
         </div>
         <label class="field"><span>Session notes (optional)</span><input type="text" data-f="notes" maxlength="120" value="${esc(f.notes)}" placeholder="e.g. friendly tournament, weekend tea session" /></label>
         <div class="rulesum small"><span>House rules: min <b>${hr.minTai}</b> Tai · cap <b>${hr.taiCap >= 13 ? 'none' : hr.taiCap}</b> · kongs <b>${hr.exposedKong}/${hr.concealedKong}</b> · pay-all <b>${hr.baoMultiplier}×</b>${hr.autoDealer ? ' · auto dealer' : ''}</span> <a href="#/settings">⚙️ Change</a></div>
@@ -67,14 +71,18 @@ export async function renderNewGame($app) {
     if (b.dataset.launch !== undefined) {
       const ps = f.seats.map((id) => roster.find((p) => p.id === id));
       if (ps.some((p) => !p)) return toast('Choose 4 players');
+      const pin = String(f.pin || '').trim();
+      if (pin && !/^\d{4,8}$/.test(pin)) return toast('Host PIN must be 4 to 8 digits');
       b.disabled = true; b.textContent = 'Launching…';
       try {
         const code = await app.store.createRoom({
           name: f.name.trim() || `Mahjong ${new Date().toLocaleDateString()}`,
           players: ps.map((p) => p.name), playerIds: ps.map((p) => p.id), handles: ps.map((p) => p.handle || ''),
           startingScore: Math.trunc(Number(f.start) || 0), scorekeeper: f.keeper.trim(), location: f.location.trim(), notes: f.notes.trim(),
-          settings: tableSettings(prefs.rules), status: 'active',
+          settings: tableSettings(prefs.rules), status: f.lobby ? 'lobby' : 'active', hostName: f.keeper.trim() || 'Host', hasPin: !!pin,
         });
+        if (f.keeper.trim()) setMyName(f.keeper.trim());
+        if (pin) { try { await app.store.setHostPin(code, pin); } catch (err) { console.error(err); toast('PIN not saved: ' + (err.code || err.message)); } }
         setCurrentGame(code); invalidate();
         location.hash = `#/t/${code}`;
       } catch (err) { console.error(err); toast('Could not start: ' + (err.code || err.message)); draw(); }
@@ -82,6 +90,7 @@ export async function renderNewGame($app) {
   };
   $app.onchange = (e) => {
     const t = e.target;
+    if (t.dataset.lobby !== undefined) { f.lobby = t.checked; return; }
     if (t.dataset.seat !== undefined) { f.seats[t.dataset.seat] = t.value || null; return draw(); }
   };
   $app.oninput = (e) => { const k = e.target.dataset.f; if (k) f[k] = e.target.value; };
