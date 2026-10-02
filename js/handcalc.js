@@ -41,6 +41,7 @@ export const blankHand = () => ({
   kind: 'normal',                 // 'normal' | 'sevenPairs' | 'thirteen' | 'limit'
   sets: [null, null, null, null], // { type, tile, open }
   pair: null,
+  called: null,                   // true = called chow/pong/kong on a discard · false = all from the wall · null = not answered (no Concealed bonus)
   pairs: [null, null, null, null, null, null, null], // seven pairs
   thirteenDouble: null,           // which of the 13 is doubled
   limit: null,                    // manual premium hand id
@@ -108,7 +109,7 @@ export function analyseHand(h, ctx = {}) {
     const terminalsOnly = tiles.every((t) => isTerminal(t));
     const counts = {}; tiles.forEach((t) => { counts[t] = (counts[t] || 0) + 1; });
     const suit = suitOf(tiles[0]);
-    const nine = tiles.length === 14 && tiles.every((t) => suitOf(t) === suit && !isHonour(t)) && sets.every((s) => !s.open)
+    const nine = tiles.length === 14 && tiles.every((t) => suitOf(t) === suit && !isHonour(t)) && h.called === false
       && counts[`${suit}1`] >= 3 && counts[`${suit}9`] >= 3 && [2, 3, 4, 5, 6, 7, 8].every((n) => counts[`${suit}${n}`] >= 1);
 
     if (dragonSets.length === 3) { sel.limit = 'bigDragons'; why('bigDragons', 'Three sets of dragons.', dragonSets.map(setTiles)); }
@@ -163,7 +164,8 @@ export function analyseHand(h, ctx = {}) {
   if (h.kind === 'normal' && !problems.length) {
     const kongs = sets.filter((s) => s.type === 'kong');
     if (kongs.length) { sel.counts.kong = kongs.length; why('kong', `${kongs.length} kong${kongs.length > 1 ? 's' : ''} (4 of a kind).`, kongs.map(setTiles)); }
-    if (sets.every((s) => !s.open)) { sel.flags.concealed = true; why('concealed', 'You never called chow/pong/kong on a discard.'); }
+    if (h.called === false) { sel.flags.concealed = true; why('concealed', 'You never called chow/pong/kong on a discard (all groups from the wall).'); }
+    else if (h.called == null) notes.push('Concealed Hand not counted — answer “Did you call chow / pong / kong?” in step 3 if all your groups came from the wall.');
   }
 
   // Bonus tiles
@@ -200,7 +202,7 @@ export function simulate(h, rules, ctx = {}) {
 /** Compact copy for storing with a request / event (no nested arrays — Firestore safe). */
 export function packHand(h) {
   const o = { kind: h.kind };
-  if (h.kind === 'normal') { o.sets = h.sets.map((s) => ({ type: s.type, tile: s.tile, open: !!s.open })); o.pair = h.pair; }
+  if (h.kind === 'normal') { o.sets = h.sets.map((s) => ({ type: s.type, tile: s.tile, open: !!s.open })); o.pair = h.pair; o.called = h.called ?? null; }
   if (h.kind === 'sevenPairs') o.pairs = [...h.pairs];
   if (h.kind === 'thirteen') o.thirteenDouble = h.thirteenDouble;
   if (h.kind === 'limit') o.limit = h.limit;

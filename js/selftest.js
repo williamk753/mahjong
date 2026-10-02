@@ -131,9 +131,12 @@ export const TESTS = [
     const H = (sets, pair, o = {}) => ({ ...blankHand(), sets: sets.map(([type, tile, open]) => ({ type, tile, open: !!open })), pair, ...o });
     const sim = (h, ctx = {}) => simulate(h, R(), ctx);
     // 4 runs + plain pair + 2-sided wait, no flowers -> Ping Hu 4 + concealed 1
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 } })).actual, 5);
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, called: false })).actual, 5);
     // same with own seat flower -> All Chow 1 + concealed 1 + flower 1
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, flowers: [1] }), { seatWind: 0 }).actual, 3);
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, flowers: [1], called: false }), { seatWind: 0 }).actual, 3);
+    // not answered / called -> no Concealed bonus
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 } })).actual, 4);
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, called: true })).actual, 4);
     // edge wait (7-8-9 won on the 7) is not Ping Hu
     eq(sim(H([['chow', 'm7'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm1']], 'p9', { winTile: { slot: 0, i: 0 } })).selection.base, 'allChow');
     // all pong (one called) + 2 dragon pongs + dragon pair -> 2 + 2 + small dragons 1

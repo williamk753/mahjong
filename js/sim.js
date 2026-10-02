@@ -116,13 +116,16 @@ function createSim(api, opts) {
     let html = '';
     if (h.kind === 'normal') {
       const cur = b.slot === 'pair' ? null : h.sets[b.slot];
-      html += `<div class="slots">${h.sets.map((s, i) => slotRow(i, `Group ${i + 1}`, setTiles(s), s ? `<button class="opentog ${s.open ? 'open' : ''}" data-open="${i}">${s.open ? '🔓 Called' : '🔒 Own'}</button>` : '')).join('')}
+      html += `<div class="slots">${h.sets.map((s, i) => slotRow(i, `Group ${i + 1}`, setTiles(s))).join('')}
         ${slotRow('pair', 'Pair', h.pair ? [h.pair, h.pair] : [])}</div>`;
       const kind = b.slot === 'pair' ? 'pair' : b.type;
       html += `<div class="picker2"><div class="small muted">${b.slot === 'pair' ? 'Pick the tile of your <b>pair</b> (2 the same)' : `Fill <b>Group ${b.slot + 1}</b>${cur ? ' (tap again to change)' : ''}`}</div>
         ${b.slot === 'pair' ? '' : `<div class="seg types">${Object.entries(SET_TYPES).map(([k, [n, d, z]]) => `<button data-type="${k}" class="${b.type === k ? 'on' : ''}"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`}
         ${suitTabs(kind === 'chow')}${choices(kind)}</div>`;
-      if (complete()) html += `<p class="hint">⭐ Tap the tile you <b>won with</b> (your last tile) — needed to check Ping Hu. <b>🔒 Own / 🔓 Called</b>: did you call chow/pong/kong on someone's discard for that group?</p>`;
+      if (complete()) html += `<p class="hint">⭐ Tap the tile you <b>won with</b> (your last tile) — needed to check Ping Hu.</p>
+        <p class="q">Did you call chow / pong / kong on someone's discard before winning?</p>
+        <div class="qopts two"><button data-called="true" class="${h.called === true ? 'on' : ''}">🔓 Yes, I called<small>Most hands</small></button>
+          <button data-called="false" class="${h.called === false ? 'on' : ''}">🔒 No, all from the wall<small>+ Concealed Hand</small></button></div>`;
     } else if (h.kind === 'sevenPairs') {
       html += `<div class="slots">${h.pairs.map((t, i) => slotRow(i, `Pair ${i + 1}`, t ? [t, t] : [])).join('')}</div>
         <div class="picker2"><div class="small muted">Pick the tile for <b>Pair ${b.slot + 1}</b></div>${suitTabs(false)}${choices('pair')}</div>`;
@@ -147,7 +150,7 @@ function createSim(api, opts) {
 
   /* ---------- step 4: result ---------- */
   function handView() {
-    if (h.kind === 'normal') return `<div class="handline">${h.sets.map((s, i) => `<span class="grp ${s.open ? 'open' : ''}">${setTiles(s).map((t, j) => tile(t, { star: isWin(i, j) })).join('')}</span>`).join('')}<span class="grp">${tile(h.pair, { star: isWin('pair', 0) })}${tile(h.pair, { star: isWin('pair', 1) })}</span></div>`;
+    if (h.kind === 'normal') return `<div class="handline">${h.sets.map((s, i) => `<span class="grp">${setTiles(s).map((t, j) => tile(t, { star: isWin(i, j) })).join('')}</span>`).join('')}<span class="grp">${tile(h.pair, { star: isWin('pair', 0) })}${tile(h.pair, { star: isWin('pair', 1) })}</span></div>`;
     if (h.kind === 'sevenPairs') return `<div class="handline">${h.pairs.map((t) => `<span class="grp">${tile(t)}${tile(t)}</span>`).join('')}</div>`;
     if (h.kind === 'thirteen') return `<div class="handline">${tiles([...THIRTEEN, h.thirteenDouble].sort())}</div>`;
     return '';
@@ -229,7 +232,7 @@ function createSim(api, opts) {
       const [slot, i] = d.wt.split(':'); const s = slot === 'pair' ? 'pair' : Number(slot);
       h.winTile = isWin(s, Number(i)) ? null : { slot: s, i: Number(i) }; return keepScroll();
     }
-    if (d.open !== undefined) { const s = h.sets[Number(d.open)]; s.open = !s.open; return keepScroll(); }
+    if (d.called !== undefined) { h.called = d.called === 'true'; return keepScroll(); }
     if (d.slot !== undefined) { b.slot = d.slot === 'pair' ? 'pair' : Number(d.slot); const s = h.sets[b.slot]; if (s) { b.type = s.type; b.suit = s.tile[0]; } return keepScroll(); }
     if (d.type) { b.type = d.type; if (d.type === 'chow' && (b.suit === 'w' || b.suit === 'd')) b.suit = 'm'; return keepScroll(); }
     if (d.suit) { b.suit = d.suit; return keepScroll(); }
