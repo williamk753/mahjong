@@ -29,6 +29,13 @@ async function createFirebaseStore() {
     import(`${FB}/firebase-auth.js`),
   ]);
   const app = initializeApp(firebaseConfig);
+  // App Check: only when a reCAPTCHA v3 site key is set in js/config.js (needed if App Check is enforced for AI Logic).
+  if (firebaseConfig.appCheckSiteKey) {
+    try {
+      const ac = await import(`${FB}/firebase-app-check.js`);
+      ac.initializeAppCheck(app, { provider: new ac.ReCaptchaV3Provider(firebaseConfig.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+    } catch (err) { console.warn('App Check not started', err); }
+  }
   const db = fs.getFirestore(app);
   const a = auth.getAuth(app);
   await auth.signInAnonymously(a);

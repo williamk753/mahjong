@@ -2,6 +2,7 @@
 import { buildScanPrompt, parseScan } from './scan-core.js';
 import { app } from './data.js';
 import { prefs } from './prefs.js';
+import { firebaseConfig } from './config.js';
 
 export const scanAvailable = () => app.store?.mode === 'cloud' && typeof app.store.generate === 'function' && prefs.rules.aiScan !== false;
 
@@ -21,11 +22,15 @@ export async function prepareImage(file, max = 1600) {
 
 function friendlyError(err) {
   const m = String(err?.message || err);
-  const detail = ` (Details: ${m.replace(/\s+/g, ' ').slice(0, 220)})`;
+  const detail = ` (Details: ${m.replace(/\s+/g, ' ').slice(0, 500)})`;
   let msg;
   if (/quota|429|RESOURCE_EXHAUSTED/i.test(m)) msg = 'The free Gemini limit is used up for now — try again later, or pick the patterns by hand.';
   else if (/404|NOT_FOUND|is not found|not supported for generateContent|Unknown model/i.test(m)) msg = `The AI model "${prefs.rules.aiModel}" is not available. Choose another model in ⚙️ House rules → AI hand scan.`;
   else if (/API_KEY_SERVICE_BLOCKED|referer|referrer|API key not valid|are blocked/i.test(m)) msg = 'Your Firebase API key is blocking Gemini. Google Cloud console → APIs & Services → Credentials → Browser key: allow “Firebase AI Logic API” and your site address.';
+  else if (/App Check|appCheck/i.test(m)) msg = firebaseConfig.appCheckSiteKey
+    ? 'App Check rejected this phone. Check the reCAPTCHA site key in js/config.js and that this website address is allowed for that key.'
+    : 'App Check is enforced for Firebase AI Logic but the app has no App Check key. Firebase console → App Check → APIs → Firebase AI Logic → Unenforce, or add a reCAPTCHA v3 site key to js/config.js.';
+  else if (/deactivated/i.test(m)) msg = 'Firebase AI Logic is switched off for this project. Firebase console → AI Logic → Settings → turn the Gemini Developer API back on (or click Get started again).';
   else if (/SERVICE_DISABLED|has not been used|is disabled|not been enabled|PERMISSION_DENIED/i.test(m)) msg = 'Gemini is not switched on for this project yet: Firebase console → AI Logic → Settings → enable Gemini Developer API (and “Firebase AI Logic API” in Google Cloud).';
   else if (/Failed to fetch|NetworkError|network|offline/i.test(m)) msg = 'Could not reach Gemini — check the internet connection.';
   else if (/SAFETY|blocked/i.test(m)) msg = 'The photo was blocked by the AI safety filter. Try a clearer photo of just the tiles.';
