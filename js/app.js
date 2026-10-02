@@ -43,8 +43,33 @@ function showDbError(err) {
     <p class="small">The <a href="#/score">Score calculator</a>, <a href="#/guide">Rules & Tai</a> and <a href="#/tests">Test suite</a> still work offline.</p></div>`;
 }
 
+/* ---------- 🔒 lock screen ---------- */
+function showLock(msg = '') {
+  document.body.classList.add('locked');
+  $app.innerHTML = `<section class="lockcard">
+      <div class="locktile">🀄</div><h1>Mahjong Score</h1><p class="muted">Enter the group password to open the app.</p>
+      <form id="lockForm" autocomplete="off"><input type="password" name="pw" inputmode="numeric" placeholder="Password" maxlength="40" required autofocus />
+        <button class="btn primary block big" type="submit">🔓 Open</button></form>
+      <p class="small neg" id="lockMsg">${esc(msg)}</p>
+      <p class="small muted">Asked once on each phone. Ask the group admin for the password.</p></section>`;
+  document.getElementById('lockForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const pw = new FormData(e.target).get('pw'); const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Checking…';
+    try {
+      await app.store.unlock(pw);
+      app.unlocked = true; document.body.classList.remove('locked');
+      await loadRules(app.store); watchRules(); header(); route();
+    } catch (err) {
+      console.error(err);
+      showLock(err.code === 'wrong-password' ? '❌ Wrong password — try again.' : `Could not check the password: ${err.message}`);
+    }
+  };
+}
+
 async function route() {
   stopGame(); closeSheet();
+  if (app.store && !app.unlocked) return showLock();
+  if (!app.store && !app.storeError) { $app.innerHTML = '<p class="muted center pad">Connecting…</p>'; return; }
   $app.onclick = null; $app.onchange = null; $app.oninput = null;
   window.scrollTo(0, 0);
   const parts = location.hash.replace(/^#\/?/, '').split('/');
@@ -118,9 +143,11 @@ function watchRules() {
   route();
   updateBell();
   document.getElementById('bell')?.addEventListener('click', openNotifications);
-  try { app.store = await createStore(); await loadRules(app.store); watchRules(); }
-  catch (err) { console.error(err); app.storeError = err; }
+  try {
+    app.store = await createStore();
+    app.unlocked = await app.store.hasAccess();
+    if (app.unlocked) { await loadRules(app.store); watchRules(); }
+  } catch (err) { console.error(err); app.storeError = err; }
   header();
-  const page = location.hash.replace(/^#\/?/, '').split('/')[0] || '';
-  if (NEEDS_STORE.has(page) || page === 'settings') route();
+  route();
 })();

@@ -3,7 +3,22 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
+    // 🔒 App password: a phone may use the database only after it unlocked the app once
+    // (its access/{uid} doc exists). The password itself lives in config/access — set it in the
+    // Firebase console, it is never readable by the app and is not in this file.
+    function authed() { return request.auth != null; }
+    function signedIn() { return authed() && exists(/databases/$(database)/documents/access/$(request.auth.uid)); }
+
+    match /config/{doc} {
+      allow read, write: if false;
+    }
+    match /access/{uid} {
+      allow read: if authed() && uid == request.auth.uid;
+      allow create, update: if authed() && uid == request.auth.uid
+        && exists(/databases/$(database)/documents/config/access)
+        && request.resource.data.key == get(/databases/$(database)/documents/config/access).data.key;
+      allow delete: if false;
+    }
     function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
     // The host controls a game. Older games without a host can be controlled by anyone.
     function isHost(code) { return signedIn() && room(code).get('hostUid', request.auth.uid) == request.auth.uid; }

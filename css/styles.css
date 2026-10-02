@@ -493,3 +493,9 @@ label.btn.disabled { opacity: .5; pointer-events: none; }
 .fixrow .mj { --tw: 30px; }
 .trainbox { border: 1px dashed var(--line); border-radius: 12px; padding: 10px; margin: 10px 0; }
 @media (prefers-color-scheme: dark) { .fixrow button.unsure { background: #3a2a12; } }
+
+/* lock screen */
+body.locked .bottomnav, body.locked .topacts, body.locked #capBadge { display: none; }
+.lockcard { max-width: 360px; margin: 10vh auto 0; text-align: center; display: grid; gap: 10px; padding: 24px 18px; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); }
+.lockcard .locktile { font-size: 56px; } .lockcard form { display: grid; gap: 10px; }
+.lockcard input { text-align: center; font-size: 22px; letter-spacing: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }

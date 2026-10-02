@@ -46,6 +46,12 @@ async function createFirebaseStore() {
 
   return {
     mode: 'cloud',
+    /* ---- 🔒 app password (checked by Firestore rules against config/access) ---- */
+    async hasAccess() { try { return (await fs.getDoc(fs.doc(db, 'access', uid()))).exists(); } catch { return false; } },
+    async unlock(pw) {
+      try { await fs.setDoc(fs.doc(db, 'access', uid()), { key: String(pw), at: Date.now() }); }
+      catch (err) { if (/permission/i.test(err.code || err.message)) { const e = new Error('Wrong password'); e.code = 'wrong-password'; throw e; } throw err; }
+    },
     uid,
     /* ---- members (who is in the room, which seat) ---- */
     async joinRoom(code, m) { await fs.setDoc(fs.doc(db, 'rooms', code, 'members', uid()), { ...m, uid: uid(), at: Date.now() }, { merge: true }); },
@@ -179,6 +185,13 @@ function createLocalStore() {
 
   return {
     mode: 'demo',
+    // Demo: password checked on this device only (compared as a SHA-256 hash).
+    async hasAccess() { try { return localStorage.getItem('mjsg-demo-access') === '1'; } catch { return false; } },
+    async unlock(pw) {
+      const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(pw))))].map((b) => b.toString(16).padStart(2, '0')).join('');
+      if (h !== 'b7158b64a98516b31d0c23609f69265a868c594dda5b3c8da9e13159e209c9b6') { const e = new Error('Wrong password'); e.code = 'wrong-password'; throw e; }
+      try { localStorage.setItem('mjsg-demo-access', '1'); } catch {}
+    },
     // Demo: one identity per browser tab, so two tabs can play host + player on one computer.
     uid: () => { try { let id = sessionStorage.getItem('mjsg-demo-uid'); if (!id) { id = newId('u_'); sessionStorage.setItem('mjsg-demo-uid', id); } return id; } catch { return 'u_local'; } },
     async joinRoom(code, m) { const db = load(); const r = db.rooms[code]; r.members = { ...(r.members || {}), [this.uid()]: { ...(r.members?.[this.uid()] || {}), ...m, uid: this.uid(), at: Date.now() } }; save(db); notify(); },
