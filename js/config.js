@@ -10,6 +10,6 @@ export const firebaseConfig = {
   appId: '1:1014626507638:web:19bd16a4f492d29c6d7857',
   // App Check (protects the free Gemini quota) with reCAPTCHA Enterprise. The SITE key is public.
   // Firebase console → App Check → Apps → web app → reCAPTCHA Enterprise → same site key. Leave '' to turn App Check off.
-  appCheckSiteKey: '6LcGU9stAAAAAIWto20jsD2ejqCi3L15P8GQTabs',
+  appCheckSiteKey: '', // off: reCAPTCHA Enterprise can need billing. Paste 6LcGU9stAAAAAIWto20jsD2ejqCi3L15P8GQTabs here to turn it back on.
   appCheckProvider: 'enterprise', // 'enterprise' (recommended) or 'v3' (reCAPTCHA Classic, deprecated)
 };
