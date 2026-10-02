@@ -8,7 +8,27 @@ import { openSim } from './sim.js';
 import { prefs } from './prefs.js';
 import { scanAvailable, scanHand } from './scan.js';
 import { patternText } from './recap-core.js';
-import { esc, toast } from './ui.js';
+import { esc, toast, sheet, closeSheet, download } from './ui.js';
+import { tile } from './tileui.js';
+
+/* ---------- training photos (IndexedDB, this phone only) ---------- */
+const DB = 'mjsg-train'; const STORE = 'photos';
+const idb = () => new Promise((res, rej) => { const r = indexedDB.open(DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(STORE, { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+async function trainTx(mode, fn) { const db = await idb(); return new Promise((res, rej) => { const tx = db.transaction(STORE, mode); const out = fn(tx.objectStore(STORE)); tx.oncomplete = () => res(out?.result ?? out); tx.onerror = () => rej(tx.error); }); }
+const trainAll = () => trainTx('readonly', (s) => s.getAll());
+const trainAdd = (x) => trainTx('readwrite', (s) => s.put(x));
+const trainClear = () => trainTx('readwrite', (s) => s.clear());
+let trainCount = null;
+async function refreshTrainCount() { try { trainCount = (await trainAll()).length; } catch { trainCount = 0; } }
+
+/** Reading order: rows top→bottom, then left→right. */
+function readingOrder(boxes) {
+  const h = boxes.length ? boxes.reduce((s, b) => s + (b.y2 - b.y1), 0) / boxes.length : 1;
+  return [...boxes].sort((a, b) => { const dy = (a.y1 + a.y2) / 2 - (b.y1 + b.y2) / 2; return Math.abs(dy) > h * 0.5 ? dy : a.x1 - b.x1; });
+}
+const PICK_GROUPS = [['万', ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9']], ['筒', ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9']], ['索', ['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9']],
+  ['Winds & dragons', ['w1', 'w2', 'w3', 'w4', 'd1', 'd2', 'd3']], ['Flowers & seasons', ['F1', 'F2', 'F3', 'F4', 'S1', 'S2', 'S3', 'S4']]];
+const codeFace = (c) => (/^[FS]\d$/.test(c) ? bonusTile((c[0] === 'F' ? ['梅', '兰', '菊', '竹'] : ['春', '夏', '秋', '冬'])[c[1] - 1], c[1]) : c.startsWith('A:') ? `<span class="emo">🐾</span>` : tile(c));
 
 const ORT_VER = '1.20.1';
 const ORT_DIR = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VER}/dist/`;
@@ -113,17 +133,28 @@ export function renderDetector($app) {
         <p class="small muted">Tips: lay the 14 tiles in one row, face up, good light, phone straight above.</p>
         ${r ? `<canvas class="detcanvas" id="detCanvas"></canvas>
           <p class="small muted">🟩 sure · 🟧 unsure (check it) · 🟥 unknown name</p><p class="small">Found <b>${r.boxes.length}</b> boxes in <b>${r.ms} ms</b>${r.boxes.some((b) => !b.code) ? ` · <span class="neg">${r.boxes.filter((b) => !b.code).length} unknown</span>` : ''}</p>
-          <div class="handline">${tileRow(r.best.tiles)}</div>${bonusHtml(r.best.bonus) ? `<div class="handline bonus">${bonusHtml(r.best.bonus)}</div>` : ''}
+          <p class="q">Tiles found — <span class="small muted">tap a wrong one to fix it</span></p>
+          <div class="fixrow">${readingOrder(r.boxes).map((b) => `<button data-fix="${r.boxes.indexOf(b)}" class="${b.fixed ? 'fixed' : b.score < 0.5 || b.swapped ? 'unsure' : ''}">${b.code ? codeFace(b.code) : '<span class="mj empty"></span>'}<small>${b.fixed ? '✏️' : Math.round(b.score * 100) + '%'}</small></button>`).join('')}</div>
+          ${r.boxes.some((b) => b.fixed) ? `<p class="small">✏️ ${r.boxes.filter((b) => b.fixed).length} fixed by you</p>` : ''}
+          <p class="small muted">Best grouping:</p><div class="handline">${tileRow(r.best.tiles)}</div>${bonusHtml(r.best.bonus) ? `<div class="handline bonus">${bonusHtml(r.best.bonus)}</div>` : ''}
           ${r.best.problem ? `<div class="perr">${esc(r.best.problem)}</div>` : `<p>✅ Makes a winning hand · best of ${r.best.options} grouping${r.best.options > 1 ? 's' : ''}: <b>${r.best.tai} Tai</b></p>`}
           <div class="row-gap-h wrap">${r.best.hand ? '<button class="btn primary" data-opensim>🧪 Open in simulator</button>' : ''}<button class="btn" data-fixsim>✏️ Fix in simulator</button>
             ${scanAvailable() ? `<button class="btn" data-gemini ${r.gem === 'busy' ? 'disabled' : ''}>🔁 Compare with Gemini</button>` : ''}</div>
           ${r.gem && r.gem !== 'busy' ? `<div class="scanres small"><b>Gemini:</b> ${r.gem.error ? `<span class="neg">${esc(r.gem.error)}</span>` : `${esc(patternText(r.gem.patterns || [], false) || 'no patterns')} · ${r.gem.ms} ms${r.gem.tiles?.length ? `<br>Tiles: ${esc(r.gem.tiles.join(', '))}` : ''}`}</div>` : ''}
+          <div class="trainbox"><b>🎓 Teach the model your tiles</b>
+            <p class="small muted">After fixing every wrong tile, save the photo. Only save when <b>every</b> tile has a box. Later, export the photos and add them to the Colab training.</p>
+            <div class="row-gap-h wrap"><button class="btn" data-savetrain ${r.saved ? 'disabled' : ''}>${r.saved ? '✅ Saved' : '💾 Save as training photo'}</button></div></div>
           ${r.judged == null ? `<p class="q">Were the tiles read correctly?</p><div class="qopts two"><button data-judge="1">👍 Yes, all correct</button><button data-judge="0">👎 No, something wrong</button></div>` : `<p class="small muted">Saved to the test log ${r.judged ? '👍' : '👎'}</p>`}` : ''}
       </section>
+      <section class="card"><h2>🎓 Training photos</h2>
+        <p class="small">${trainCount == null ? 'Counting…' : `<b>${trainCount}</b> photo${trainCount === 1 ? '' : 's'} saved on this phone.`} About 30–50 photos of your own tiles makes a big difference.</p>
+        <div class="row-gap-h wrap"><button class="btn primary" data-exporttrain ${trainCount ? '' : 'disabled'}>⬇ Export for training (.zip)</button>${trainCount ? '<button class="btn sm danger" data-cleartrain>Delete all</button>' : ''}</div>
+        <p class="small muted">Then in Colab, run the “Add my own photos” cell and upload the zip before training.</p></section>
       ${log()}`;
     if (r) drawBoxes(document.getElementById('detCanvas'), r.img, r.boxes);
   };
   draw();
+  if (trainCount == null) refreshTrainCount().then(draw);
 
   const ctx = () => ({ seatWind: 0, roundWind: 0, selfDraw: true });
   const setResult = (res) => {
@@ -131,6 +162,31 @@ export function renderDetector($app) {
     st.last = { ...res, best, judged: null, logAt: Date.now() };
     const l = readLog(); l.unshift({ at: st.last.logAt, n: res.boxes.length, ms: res.ms, tai: best.hand ? best.tai : null, ok: null }); writeLog(l);
   };
+  const recompute = () => { const r = st.last; r.best = bestHand(r.boxes.map((b) => b.code), prefs.rules, ctx());
+    const l = readLog(); const x = l.find((y) => y.at === r.logAt); if (x) { x.tai = r.best.hand ? r.best.tai : null; const f = r.boxes.filter((b) => b.fixed).length; x.note = f ? `${f} fixed` : ''; if (f && x.ok == null) { x.ok = false; r.judged = false; } } writeLog(l); };
+  const fixSheet = (i) => {
+    const b = st.last.boxes[i];
+    sheet({ title: 'Which tile is it?', sub: `The model said: ${esc(b.raw)} (${Math.round(b.score * 100)}%)`,
+      body: `${PICK_GROUPS.map(([n, list]) => `<p class="small muted">${n}</p><div class="choices">${list.map((c) => `<button data-pickfix="${c}" class="${b.code === c ? 'on' : ''}">${codeFace(c)}</button>`).join('')}</div>`).join('')}
+        <button class="btn block danger" data-pickfix="">🗑 Not a tile (remove this box)</button>`,
+      onMount(api) { api.el.addEventListener('click', (e) => { const t = e.target.closest('[data-pickfix]'); if (!t) return;
+        if (t.dataset.pickfix === '') st.last.boxes.splice(i, 1); else Object.assign(st.last.boxes[i], { code: t.dataset.pickfix, fixed: true, swapped: false });
+        st.last.saved = false; recompute(); closeSheet(); draw(); }); } });
+  };
+  const nameIndex = (code) => st.meta.names.findIndex((n) => mapClass(n, st.meta.map) === code);
+  async function exportTraining() {
+    const all = await trainAll(); if (!all.length) return;
+    if (!window.JSZip) await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'; s.onload = res; s.onerror = () => rej(new Error('Could not load the zip tool — check the internet connection.')); document.head.appendChild(s); });
+    const zip = new window.JSZip();
+    for (const p of all) {
+      zip.file(`images/${p.id}.jpg`, p.blob);
+      zip.file(`labels/${p.id}.txt`, p.boxes.map((b) => `${b.cls} ${(((b.x1 + b.x2) / 2) / p.w).toFixed(6)} ${(((b.y1 + b.y2) / 2) / p.h).toFixed(6)} ${((b.x2 - b.x1) / p.w).toFixed(6)} ${((b.y2 - b.y1) / p.h).toFixed(6)}`).join('\n'));
+    }
+    zip.file('names.json', JSON.stringify(st.meta?.names || all[0].names || []));
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `my_tiles_${all.length}.zip`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast(`Exported ${all.length} photos`);
+  }
   const busy = async (fn) => { st.busy = true; draw(); try { await fn(); } catch (err) { console.error(err); toast(err.message || String(err)); } finally { st.busy = false; draw(); } };
 
   $app.onchange = async (e) => {
@@ -145,6 +201,18 @@ export function renderDetector($app) {
   };
   $app.onclick = async (e) => {
     const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.fix !== undefined) return fixSheet(Number(b.dataset.fix));
+    if (b.dataset.savetrain !== undefined) {
+      const r = st.last; const bad = r.boxes.filter((x) => !x.code || nameIndex(x.code) < 0);
+      if (bad.length) return toast('Some boxes have no valid tile — fix or remove them first');
+      return busy(async () => {
+        await trainAdd({ id: `p${r.logAt}`, blob: r.file, w: r.img.naturalWidth, h: r.img.naturalHeight, names: st.meta.names,
+          boxes: r.boxes.map((x) => ({ x1: Math.max(0, x.x1), y1: Math.max(0, x.y1), x2: Math.min(r.img.naturalWidth, x.x2), y2: Math.min(r.img.naturalHeight, x.y2), cls: nameIndex(x.code) })) });
+        r.saved = true; await refreshTrainCount(); toast('Saved as a training photo');
+      });
+    }
+    if (b.dataset.exporttrain !== undefined) return busy(exportTraining);
+    if (b.dataset.cleartrain !== undefined) { if (!confirm('Delete all saved training photos on this phone?')) return; await trainClear(); await refreshTrainCount(); return draw(); }
     if (b.dataset.loadsite !== undefined) return busy(async () => {
       const [m, j] = await Promise.all([fetch('models/tiles.onnx'), fetch('models/tiles.json')]);
       if (!m.ok) throw new Error('models/tiles.onnx is not on the website yet — train it with tools/train_tile_detector.ipynb, or pick the file from your phone.');

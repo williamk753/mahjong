@@ -485,3 +485,11 @@ label.btn.disabled { opacity: .5; pointer-events: none; }
 .logrow { display: flex; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .row-gap-h.wrap { flex-wrap: wrap; margin: 8px 0; }
 .handline .mjrow { flex-wrap: wrap; justify-content: center; row-gap: 6px; }
+.fixrow { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.fixrow button { border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 5px 4px 3px; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; min-width: 44px; }
+.fixrow button small { font-size: 10px; color: var(--muted); }
+.fixrow button.unsure { border: 2px dashed #d97706; background: #fff7ed; }
+.fixrow button.fixed { border: 2px solid var(--felt-2); background: var(--felt-3); }
+.fixrow .mj { --tw: 30px; }
+.trainbox { border: 1px dashed var(--line); border-radius: 12px; padding: 10px; margin: 10px 0; }
+@media (prefers-color-scheme: dark) { .fixrow button.unsure { background: #3a2a12; } }
