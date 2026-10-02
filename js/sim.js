@@ -35,9 +35,10 @@ export function mountSim(el, opts) {
 function createSim(api, opts) {
   const calc = opts.mode === 'calc';
   const m = { winner: opts.presetWinner ?? (calc ? (opts.seatWind ?? 0) : null), method: null, shooter: null, baoBy: null, baoReason: 'thirdDragon', baoSelf: false, roundWind: opts.roundWind ?? 0 };
-  let h = blankHand();
+  let h = opts.initialHand ? { ...blankHand(), ...JSON.parse(JSON.stringify(opts.initialHand)) } : blankHand();
   const b = { slot: 0, type: 'pong', suit: 'm' }; // builder cursor
-  let showLimits = false; let rsId = DEFAULT_ID; let step = 0;
+  let showLimits = false; let rsId = DEFAULT_ID; let step = opts.initialHand ? 2 : 0;
+  if (opts.initialHand && !m.method) m.method = 'self';
   const STEPS = ['win', 'type', 'build', 'result'];
   const fixed = !calc || !!opts.rules;
   const R = () => (!fixed ? ruleSet(rsId).rules : typeof opts.rules === 'function' ? opts.rules() : opts.rules);

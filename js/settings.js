@@ -109,6 +109,7 @@ function page(store) {
       ${row('Photo scan in Record win & Score', 'Take a photo of the winning hand; Google Gemini reads the tiles and fills in the patterns for you to check. Needs cloud mode and Firebase AI Logic switched on.', toggle('aiScan', r.aiScan))}
       ${row('Gemini model', 'Change only if a model stops working or is too slow.',
         sel('aiModel', [...Object.entries(AI_MODELS), ...(AI_MODELS[r.aiModel] ? [] : [[r.aiModel, r.aiModel]])], r.aiModel))}
+      <p class="small">🧪 Testing a free alternative that runs on the phone: <a href="#/detector">📷 Tile detector (beta)</a></p>
     </section>
 
     <section class="card">

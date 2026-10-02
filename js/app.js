@@ -17,11 +17,12 @@ import { renderTiles } from './tiles.js';
 import { renderSettings } from './settings.js';
 import { renderMore, renderTests } from './more.js';
 import { renderBackup } from './backup.js';
+import { renderDetector } from './detect.js';
 
 const $app = document.getElementById('app');
 
 const NAV_OF = { '': 'home', new: 'game', game: 'game', t: 'game', score: 'score', ranking: 'ranking', leaderboard: 'ranking',
-  more: 'more', players: 'more', guide: 'more', tiles: 'more', tests: 'more', settings: 'more', backup: 'more' };
+  more: 'more', players: 'more', guide: 'more', tiles: 'more', tests: 'more', settings: 'more', backup: 'more', detector: 'more' };
 const NEEDS_STORE = new Set(['', 'new', 'game', 't', 'ranking', 'leaderboard', 'players', 'backup']);
 
 function header() {
@@ -73,6 +74,7 @@ async function route() {
       case 'settings': return renderSettings($app, app.store);
       case 'more': return renderMore($app);
       case 'backup': return await renderBackup($app);
+      case 'detector': return renderDetector($app);
       default: location.replace('#/');
     }
   } catch (err) {

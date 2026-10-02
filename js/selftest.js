@@ -6,6 +6,7 @@ import { computeLeaderboard } from './stats.js';
 import { buildRecap, recapText } from './recap-core.js';
 import { parseScan, buildScanPrompt } from './scan-core.js';
 import { blankHand, simulate } from './handcalc.js';
+import { mapClass, bestHand } from './detect-core.js';
 
 const eq = (a, b, msg) => {
   const A = JSON.stringify(a), B = JSON.stringify(b);
@@ -150,6 +151,12 @@ export const TESTS = [
     eq(sim({ ...blankHand(), kind: 'sevenPairs', pairs: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'] }, { selfDraw: true }).actual, 11);
     // a tile used more than 4 times is rejected
     ok(!sim(H([['pong', 'm1'], ['pong', 'm1'], ['chow', 'p1'], ['chow', 'p4']], 's2')).valid, 'too many tiles rejected');
+  }],
+  ['Tile detector: names → tiles → hand', 'Model class names are understood and 14 detected tiles are grouped into the best 4 sets + 1 pair.', () => {
+    eq(['1m', '0p', '7z', '1z', 'f6', 'bamboo_3', 'xx'].map((n) => mapClass(n)), ['m1', 'p5', 'd1', 'w1', 'S2', 's3', null]);
+    const r = bestHand(['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 'd1', 'd1', 'd1', 'p5', 'p5', 'F1'], R(), { seatWind: 0 });
+    eq(r.hand.pair, 'p5'); eq(r.tai, 2);
+    ok(bestHand(['m1', 'm2'], R()).problem, 'too few tiles reported');
   }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);

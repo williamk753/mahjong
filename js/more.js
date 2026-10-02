@@ -15,6 +15,7 @@ export function renderMore($app) {
     </div>
     <h3 class="sect">Verification & configuration</h3>
     <div class="menu card">
+      ${item('#/detector', '📷', 'Tile detector (beta)', 'Test the free on-phone AI that reads tiles from a photo', 'green')}
       ${item('#/tests', '🧪', 'Calculation test suite', 'Run the automated business-rule checks', 'purple')}
       ${item('#/settings', '⚙️', 'House rules & app settings', 'Min / max Tai, final-wall threshold, point units', 'grey')}
       ${item('#/backup', '💾', 'Data backup & restore', 'Export / import JSON, reset rankings', 'amber')}

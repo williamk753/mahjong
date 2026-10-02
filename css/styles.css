@@ -481,3 +481,7 @@ label.btn.disabled { opacity: .5; pointer-events: none; }
 .advcalc summary { cursor: pointer; min-height: 32px; }
 @media (max-width: 380px) { .mj { --tw: 30px; } .handline .mj { --tw: 26px; } .slab { width: 44px; } .seg button small { display: none; } }
 .simcard .picker2 { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 4px); }
+.detcanvas { width: 100%; height: auto; border-radius: 12px; background: #000; display: block; margin: 8px 0; }
+.logrow { display: flex; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.row-gap-h.wrap { flex-wrap: wrap; margin: 8px 0; }
+.handline .mjrow { flex-wrap: wrap; justify-content: center; row-gap: 6px; }
