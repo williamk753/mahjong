@@ -140,7 +140,12 @@ export function renderDetector($app) {
           ${r.best.problem ? `<div class="perr">${esc(r.best.problem)}</div>` : `<p>✅ Makes a winning hand · best of ${r.best.options} grouping${r.best.options > 1 ? 's' : ''}: <b>${r.best.tai} Tai</b></p>`}
           <div class="row-gap-h wrap">${r.best.hand ? '<button class="btn primary" data-opensim>🧪 Open in simulator</button>' : ''}<button class="btn" data-fixsim>✏️ Fix in simulator</button>
             ${scanAvailable() ? `<button class="btn" data-gemini ${r.gem === 'busy' ? 'disabled' : ''}>🔁 Compare with Gemini</button>` : ''}</div>
-          ${r.gem && r.gem !== 'busy' ? `<div class="scanres small"><b>Gemini:</b> ${r.gem.error ? `<span class="neg">${esc(r.gem.error)}</span>` : `${esc(patternText(r.gem.patterns || [], false) || 'no patterns')} · ${r.gem.ms} ms${r.gem.tiles?.length ? `<br>Tiles: ${esc(r.gem.tiles.join(', '))}` : ''}`}</div>` : ''}
+          ${r.gem && r.gem !== 'busy' ? `<div class="scanres small"><b>Gemini</b> (${r.gem.ms ?? '–'} ms): ${r.gem.error ? `<span class="neg">${esc(r.gem.error)}</span>` : `
+            ${r.gem.best ? `<div class="handline">${tileRow(r.gem.best.tiles)}</div>${bonusHtml(r.gem.best.bonus) ? `<div class="handline bonus">${bonusHtml(r.gem.best.bonus)}</div>` : ''}` : ''}
+            ${r.gem.unknown?.length ? `<span class="neg">Not understood: ${esc(r.gem.unknown.join(', '))}</span><br>` : ''}
+            ${r.gem.best?.hand ? `✅ ${r.gem.best.tiles.length} tiles · our engine: <b>${r.gem.best.tai} Tai</b>` : `<span class="neg">${esc(r.gem.best?.problem || '')}</span>`}
+            <br><span class="muted">Gemini's own pattern guess: ${esc(patternText(r.gem.patterns || [], false) || 'none')}</span>
+            ${r.gem.best?.hand ? '<br><button class="btn sm primary" data-gemsim>🧪 Use Gemini’s tiles in the simulator</button>' : ''}`}</div>` : ''}
           <div class="trainbox"><b>🎓 Teach the model your tiles</b>
             <p class="small muted">After fixing every wrong tile, save the photo. Only save when <b>every</b> tile has a box. Later, export the photos and add them to the Colab training.</p>
             <div class="row-gap-h wrap"><button class="btn" data-savetrain ${r.saved ? 'disabled' : ''}>${r.saved ? '✅ Saved' : '💾 Save as training photo'}</button></div></div>
@@ -222,9 +227,13 @@ export function renderDetector($app) {
       const r = st.last; const hand = r.best.hand || { kind: 'normal', ...r.best.bonus };
       return openSim({ mode: 'calc', initialHand: hand, seatWind: 0, roundWind: 0 });
     }
+    if (b.dataset.gemsim !== undefined) return openSim({ mode: 'calc', initialHand: st.last.gem.best.hand, seatWind: 0, roundWind: 0 });
     if (b.dataset.gemini !== undefined) {
       const r = st.last; r.gem = 'busy'; draw(); const t0 = performance.now();
-      try { const g = await scanHand(r.file, { seatWind: 'East', seatNo: 1 }); r.gem = { patterns: selectionToList(g.selection), tiles: g.tiles, ms: Math.round(performance.now() - t0) }; }
+      try { const g = await scanHand(r.file, { seatWind: 'East', seatNo: 1 }); r.gem = { patterns: selectionToList(g.selection), tiles: g.tiles, ms: Math.round(performance.now() - t0) };
+        // Let OUR engine score Gemini's tile list (Gemini reads tiles well but is less reliable at picking patterns).
+        const codes = (g.tiles || []).map((t) => mapClass(t)); r.gem.unknown = (g.tiles || []).filter((t, i) => !codes[i]);
+        r.gem.best = bestHand(codes.filter(Boolean), prefs.rules, ctx()); }
       catch (err) { r.gem = { error: err.message }; }
       return draw();
     }
