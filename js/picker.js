@@ -3,9 +3,9 @@
 import { TAI_CATALOG, CATEGORIES, taiValue } from './rules.js';
 import { evaluateHand, emptySelection, selectionToList, byId, BASE_HANDS, SUITS, LIMITS } from './hand.js';
 import { basePoints } from './scoring.js';
-import { zh } from './prefs.js';
+import { zh, prefs } from './prefs.js';
 import { esc } from './ui.js';
-import { scanHand, scanAvailable } from './scan.js';
+import { scanHand, scanAvailable, scansLeft } from './scan.js';
 import { app } from './data.js';
 const app_mode = () => app.store?.mode || 'demo';
 
@@ -129,7 +129,10 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
         <p class="small muted">${app_mode() === 'cloud' ? 'It is switched off in ⚙️ House rules → AI hand scan.' : 'It needs the shared cloud database (Firebase). In demo mode, pick the patterns by hand.'}</p></div>`;
     }
     const conf = sc.result ? Math.round(sc.result.confidence * 100) : 0;
+    if (st.left === undefined) { st.left = null; scansLeft().then((n) => { st.left = n; if (st.mode === 'scan') render(); }); }
+    const lim = prefs.rules.aiDailyLimit ?? 20;
     return `<div class="scanbox">
+      ${st.left != null ? `<p class="small ${st.left ? 'muted' : 'neg'}">📷 ${st.left} of ${lim} scans left today (shared by everyone)</p>` : ''}
       ${sc.preview ? `<img class="scanprev" src="${sc.preview}" alt="Photo of the winning hand" />` : '<div class="bigtile">📷</div>'}
       ${sc.status === 'busy' ? '<div class="scanbusy"><span class="spinner"></span> Gemini is reading the tiles…</div>' : ''}
       ${sc.status === 'error' ? `<div class="perr">${esc(sc.error)}</div>` : ''}
@@ -187,9 +190,9 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
     st.scan = { status: 'busy', preview: URL.createObjectURL(file) }; render();
     try {
       const result = await scanHand(file, ctx());
-      st.sel = result.selection; st.scan = { status: 'done', preview: result.preview, result };
+      st.sel = result.selection; st.scan = { status: 'done', preview: result.preview, result }; st.left = result.left;
     } catch (err) {
-      st.scan = { status: 'error', preview: err.preview || st.scan.preview, error: err.message };
+      st.scan = { status: 'error', preview: err.preview || st.scan.preview, error: err.message }; if (err.code === 'ai-limit') st.left = 0;
     }
     render();
   });

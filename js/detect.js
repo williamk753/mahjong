@@ -140,7 +140,7 @@ export function renderDetector($app) {
           ${r.best.problem ? `<div class="perr">${esc(r.best.problem)}</div>` : `<p>✅ Makes a winning hand · best of ${r.best.options} grouping${r.best.options > 1 ? 's' : ''}: <b>${r.best.tai} Tai</b></p>`}
           <div class="row-gap-h wrap">${r.best.hand ? '<button class="btn primary" data-opensim>🧪 Open in simulator</button>' : ''}<button class="btn" data-fixsim>✏️ Fix in simulator</button>
             ${scanAvailable() ? `<button class="btn" data-gemini ${r.gem === 'busy' ? 'disabled' : ''}>🔁 Compare with Gemini</button>` : ''}</div>
-          ${r.gem && r.gem !== 'busy' ? `<div class="scanres small"><b>Gemini</b> (${r.gem.ms ?? '–'} ms): ${r.gem.error ? `<span class="neg">${esc(r.gem.error)}</span>` : `
+          ${r.gem && r.gem !== 'busy' ? `<div class="scanres small"><b>Gemini</b> (${r.gem.ms ?? '–'} ms${r.gem.left != null ? ` · ${r.gem.left} scans left today` : ''}): ${r.gem.error ? `<span class="neg">${esc(r.gem.error)}</span>` : `
             ${r.gem.best ? `<div class="handline">${tileRow(r.gem.best.tiles)}</div>${bonusHtml(r.gem.best.bonus) ? `<div class="handline bonus">${bonusHtml(r.gem.best.bonus)}</div>` : ''}` : ''}
             ${r.gem.unknown?.length ? `<span class="neg">Not understood: ${esc(r.gem.unknown.join(', '))}</span><br>` : ''}
             ${r.gem.best?.hand ? `✅ ${r.gem.best.tiles.length} tiles · our engine: <b>${r.gem.best.tai} Tai</b>` : `<span class="neg">${esc(r.gem.best?.problem || '')}</span>`}
@@ -230,7 +230,7 @@ export function renderDetector($app) {
     if (b.dataset.gemsim !== undefined) return openSim({ mode: 'calc', initialHand: st.last.gem.best.hand, seatWind: 0, roundWind: 0 });
     if (b.dataset.gemini !== undefined) {
       const r = st.last; r.gem = 'busy'; draw(); const t0 = performance.now();
-      try { const g = await scanHand(r.file, { seatWind: 'East', seatNo: 1 }); r.gem = { patterns: selectionToList(g.selection), tiles: g.tiles, ms: Math.round(performance.now() - t0) };
+      try { const g = await scanHand(r.file, { seatWind: 'East', seatNo: 1 }); r.gem = { patterns: selectionToList(g.selection), tiles: g.tiles, left: g.left, ms: Math.round(performance.now() - t0) };
         // Let OUR engine score Gemini's tile list (Gemini reads tiles well but is less reliable at picking patterns).
         const codes = (g.tiles || []).map((t) => mapClass(t)); r.gem.unknown = (g.tiles || []).filter((t, i) => !codes[i]);
         r.gem.best = bestHand(codes.filter(Boolean), prefs.rules, ctx()); }

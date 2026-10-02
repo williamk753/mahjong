@@ -4,6 +4,9 @@ import { app } from './data.js';
 import { prefs } from './prefs.js';
 import { firebaseConfig } from './config.js';
 
+/** Scans left today for the whole group (or null if unknown). */
+export async function scansLeft() { try { return await app.store.aiScansLeft(prefs.rules.aiDailyLimit ?? 20); } catch { return null; } }
+
 export const scanAvailable = () => app.store?.mode === 'cloud' && typeof app.store.generate === 'function' && prefs.rules.aiScan !== false;
 
 /** Downscale to max 1600px JPEG (keeps requests small & fast on mobile data). */
@@ -41,13 +44,15 @@ function friendlyError(err) {
 /** Returns { selection, tiles, notes, confidence, warnings, preview } */
 export async function scanHand(file, ctx) {
   if (!scanAvailable()) throw new Error('The AI hand scan needs cloud mode (Firebase) and is switched on in House rules.');
+  const limit = prefs.rules.aiDailyLimit ?? 20;
+  const left = await app.store.useAiScan(limit); // throws when today's scans are used up
   const img = await prepareImage(file);
   try {
     const text = await app.store.generate(prefs.rules.aiModel, [
       buildScanPrompt(prefs.rules, ctx),
       { inlineData: { data: img.base64, mimeType: img.mimeType } },
     ], { responseMimeType: 'application/json', temperature: 0.1 });
-    return { ...parseScan(text), preview: img.dataUrl };
+    return { ...parseScan(text), preview: img.dataUrl, left };
   } catch (err) {
     console.error(err);
     const e = new Error(friendlyError(err)); e.preview = img.dataUrl; throw e;

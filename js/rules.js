@@ -62,6 +62,7 @@ export const HOUSE_DEFAULTS = {
   leaderboardResetAt: 0,         // rankings ignore games created before this time
   aiScan: true,                  // 📷 Gemini hand scan in Record win / Score
   aiModel: 'gemini-3.8-flash',   // Gemini model used for the scan
+  aiDailyLimit: 20,              // max Gemini photo scans per day for the whole group (resets midnight US Pacific, like Google's quota)
   autoDealer: true,             // track dealer: dealer wins -> stays (连庄), else rotates
   drawRule: 'stay',             // on a draw: 'stay' (连庄) or 'rotate'
   exposedKong: DEFAULT_SETTINGS.exposedKong,       // instant: each opponent pays
@@ -90,6 +91,7 @@ export function mergeRules(saved = {}) {
   r.finalWallStacks = int(r.finalWallStacks, HOUSE_DEFAULTS.finalWallStacks, 0, 40);
   r.leaderboardResetAt = Math.max(0, Math.floor(Number(r.leaderboardResetAt) || 0));
   r.aiScan = r.aiScan !== false;
+  r.aiDailyLimit = int(r.aiDailyLimit, HOUSE_DEFAULTS.aiDailyLimit, 0, 100);
   r.aiModel = /^[a-z0-9.\-]{3,60}$/.test(String(r.aiModel || '')) ? r.aiModel : HOUSE_DEFAULTS.aiModel;
   delete r.addedKong; delete r.exposedKongDiscarderPaysAll;
   r.winCircumstance = !!r.winCircumstance;

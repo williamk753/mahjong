@@ -107,6 +107,7 @@ function page(store) {
     ${isDefault() ? `<section class="card">
       <h2>📷 AI hand scan (Gemini)</h2>
       ${row('Photo scan in Record win & Score', 'Take a photo of the winning hand; Google Gemini reads the tiles and fills in the patterns for you to check. Needs cloud mode and Firebase AI Logic switched on.', toggle('aiScan', r.aiScan))}
+      ${row('Max photo scans per day', 'Shared by everyone using the app. Keeps you inside Google’s free limit. Resets at midnight US Pacific time (2–3 pm in Jakarta).', stepper('data-num', 'aiDailyLimit', r.aiDailyLimit ?? 20) + '<div class="muted small center">per day</div>')}
       ${row('Gemini model', 'Change only if a model stops working or is too slow.',
         sel('aiModel', [...Object.entries(AI_MODELS), ...(AI_MODELS[r.aiModel] ? [] : [[r.aiModel, r.aiModel]])], r.aiModel))}
       <p class="small">🧪 Testing a free alternative that runs on the phone: <a href="#/detector">📷 Tile detector (beta)</a></p>
