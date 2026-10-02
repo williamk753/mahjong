@@ -24,6 +24,10 @@ Live, shared score tracker for a 4-player Singapore mahjong table — free to ho
 
 Scoring: base = 2^min(Tai, cap). Discard win → discarder 2×, others 1×. Self-draw → all pay 2×. Pay-all → responsible player pays 6× alone. Every entry is 4 integer deltas that must sum to 0 (checked in the app **and** by `firestore.rules`); entries are voided, never deleted.
 
+## 🧪 Winning hand simulator & rule sets
+- **Simulator (Score tab, Record Win, 🙋 I won!, 🧪 Simulate in a game):** 1 · win details → 2 · kind of hand (normal / seven pairs / thirteen wonders / premium) → 3 · build the tiles (4 groups + 1 pair, 3 taps each; flowers & animals; ⭐ mark the winning tile) → 4 · result: the winning pattern, the hand, every Tai with the tiles that earn it, base points and who pays. Nothing is saved unless the host records it.
+- **Rule sets:** ⚙️ Rule sets → ⭐ Default plus your own sets (＋ New rule set copies the one you are viewing). Pick a set when you create a game — the game keeps a copy of those rules. Everyone is notified when a set changes.
+
 ## One host per game · join screen · requests · notifications
 - **Host control:** the phone that creates a game is the host — only it can record wins, payouts, undo, finish or end the game (enforced by `firestore.rules`). Everyone else sees live scores read-only.
 - **Hand over / take over:** Host tools → give control to another phone, or set a **host PIN** so someone can take over with 🔑 Take over (the PIN is stored where nobody can read it).

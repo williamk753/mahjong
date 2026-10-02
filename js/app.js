@@ -2,6 +2,7 @@
 import { createStore, isDemo } from './store.js';
 import { prefs, loadRules, applyDisplay, applyRemoteRules } from './prefs.js';
 import { notify, openNotifications, updateBell } from './notify.js';
+import { setRuleSets } from './rulesets.js';
 import { app } from './data.js';
 import { esc, closeSheet } from './ui.js';
 import { renderHome, renderGameTab } from './home.js';
@@ -93,6 +94,18 @@ function watchRules() {
     if (lc.byUid && lc.byUid === app.store.uid?.()) return; // my own change
     notify({ icon: '⚙️', title: `${lc.byName || 'Someone'} changed the house rules`, body: lc.summary || '', link: '#/settings', key: `rules-${lc.at}` });
     if (location.hash.startsWith('#/settings')) route();
+  });
+  const seenSets = {}; let first = true;
+  app.store.watchRuleSets?.((list) => {
+    for (const x of list) {
+      const at = x.lastChange?.at || 0;
+      if (!first && at > (seenSets[x.id] || 0) && x.lastChange.byUid !== app.store.uid?.()) {
+        notify({ icon: '⚙️', title: `${x.lastChange.byName || 'Someone'} changed the “${x.name}” rules`, body: x.lastChange.summary || '', link: '#/settings', key: `rs-${x.id}-${at}` });
+      }
+      seenSets[x.id] = Math.max(seenSets[x.id] || 0, at);
+    }
+    first = false;
+    setRuleSets(list);
   });
 }
 

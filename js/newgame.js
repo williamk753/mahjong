@@ -1,6 +1,6 @@
 // Start a new game: pick 4 seats from the player directory, table settings, launch.
 import { prefs, zh, myName, setMyName } from './prefs.js';
-import { tableSettings } from './rules.js';
+import { ruleSets, ruleSet, settingsFor, DEFAULT_ID } from './rulesets.js';
 import { app, getRoster, invalidateRoster, setCurrentGame, invalidate } from './data.js';
 import { esc, toast, sheet, closeSheet, WIND_EN, WIND_ZH } from './ui.js';
 
@@ -8,12 +8,14 @@ export async function renderNewGame($app) {
   $app.innerHTML = '<p class="muted center pad">Loading players…</p>';
   let roster = [];
   try { roster = await getRoster(true); } catch (err) { console.error(err); }
-  const f = { seats: [null, null, null, null], start: 0, keeper: myName(), location: '', notes: '', name: '', pin: '', lobby: true };
-  const hr = prefs.rules;
+  const f = { seats: [null, null, null, null], start: 0, keeper: myName(), location: '', notes: '', name: '', pin: '', lobby: true, rs: DEFAULT_ID };
+  if (!ruleSets().some((x) => x.id === f.rs)) f.rs = DEFAULT_ID;
+  let hr = ruleSet(f.rs).rules;
 
   const draw = () => {
     const assigned = (id, seat) => f.seats.some((s, i) => s === id && i !== seat);
     const ready = f.seats.filter(Boolean).length;
+    hr = ruleSet(f.rs).rules;
     $app.innerHTML = `
       <div class="pagehead"><h1>Start new mahjong game</h1><p class="muted">Pick 4 players and table settings</p></div>
       <section class="card">
@@ -40,7 +42,8 @@ export async function renderNewGame($app) {
           <label class="check"><input type="checkbox" data-lobby ${f.lobby ? 'checked' : ''}/> Open a join screen first (QR code — players join on their own phones, like Kahoot)</label>
         </div>
         <label class="field"><span>Session notes (optional)</span><input type="text" data-f="notes" maxlength="120" value="${esc(f.notes)}" placeholder="e.g. friendly tournament, weekend tea session" /></label>
-        <div class="rulesum small"><span>House rules: min <b>${hr.minTai}</b> Tai · cap <b>${hr.taiCap >= 13 ? 'none' : hr.taiCap}</b> · kongs <b>${hr.exposedKong}/${hr.concealedKong}</b> · pay-all <b>${hr.baoMultiplier}×</b>${hr.autoDealer ? ' · auto dealer' : ''}</span> <a href="#/settings">⚙️ Change</a></div>
+        <label class="field"><span>📏 Rule set</span><select data-rs>${ruleSets().map((x) => `<option value="${esc(x.id)}" ${f.rs === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        <div class="rulesum small"><span>min <b>${hr.minTai}</b> Tai · cap <b>${hr.taiCap >= 13 ? 'none' : hr.taiCap}</b> · kongs <b>${hr.exposedKong}/${hr.concealedKong}</b> · pay-all <b>${hr.baoMultiplier}×</b>${hr.autoDealer ? ' · auto dealer' : ''}</span> <a href="#/settings">⚙️ Edit / new set</a></div>
       </section>
       <button class="btn primary block big" data-launch ${ready === 4 ? '' : 'disabled'}>🀄 Launch game table</button>
       <p class="center small muted">Joining a friend's game? Open <a href="#/game">Game</a> and enter their code.</p>`;
@@ -79,7 +82,7 @@ export async function renderNewGame($app) {
           name: f.name.trim() || `Mahjong ${new Date().toLocaleDateString()}`,
           players: ps.map((p) => p.name), playerIds: ps.map((p) => p.id), handles: ps.map((p) => p.handle || ''),
           startingScore: Math.trunc(Number(f.start) || 0), scorekeeper: f.keeper.trim(), location: f.location.trim(), notes: f.notes.trim(),
-          settings: tableSettings(prefs.rules), status: f.lobby ? 'lobby' : 'active', hostName: f.keeper.trim() || 'Host', hasPin: !!pin,
+          settings: settingsFor(f.rs), status: f.lobby ? 'lobby' : 'active', hostName: f.keeper.trim() || 'Host', hasPin: !!pin,
         });
         if (f.keeper.trim()) setMyName(f.keeper.trim());
         if (pin) { try { await app.store.setHostPin(code, pin); } catch (err) { console.error(err); toast('PIN not saved: ' + (err.code || err.message)); } }
@@ -91,6 +94,7 @@ export async function renderNewGame($app) {
   $app.onchange = (e) => {
     const t = e.target;
     if (t.dataset.lobby !== undefined) { f.lobby = t.checked; return; }
+    if (t.dataset.rs !== undefined) { f.rs = t.value; return draw(); }
     if (t.dataset.seat !== undefined) { f.seats[t.dataset.seat] = t.value || null; return draw(); }
   };
   $app.oninput = (e) => { const k = e.target.dataset.f; if (k) f[k] = e.target.value; };

@@ -115,8 +115,8 @@ export function taiValue(rules, id) {
 
 /** Settings snapshot stored on a table when it is created / updated. */
 export function tableSettings(rules) {
-  const { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel } = rules;
-  return { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel };
+  const { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks } = rules;
+  return { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks, tai: { ...(rules.tai || {}) } };
 }
 
 export const WIND_NAMES = ['East', 'South', 'West', 'North'];

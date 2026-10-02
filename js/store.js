@@ -53,6 +53,13 @@ async function createFirebaseStore() {
       await fs.setDoc(fs.doc(db, 'rooms', code, 'claims', uid()), { pin: String(pin), at: Date.now() });
       await fs.updateDoc(roomRef(code), { hostUid: uid(), hostName: name || 'Host' });
     },
+    /* ---- extra rule sets ---- */
+    watchRuleSets(cb) { return fs.onSnapshot(fs.collection(db, 'ruleSets'), (s) => cb(s.docs.map((d) => ({ id: d.id, ...d.data() })))); },
+    async saveRuleSet(id, data) {
+      if (!id) { const ref = await fs.addDoc(fs.collection(db, 'ruleSets'), { ...data, createdAt: Date.now(), updatedAt: Date.now(), by: uid() }); return ref.id; }
+      await fs.setDoc(fs.doc(db, 'ruleSets', id), { ...data, lastChange: data.lastChange ? { ...data.lastChange, byUid: uid() } : null, updatedAt: Date.now(), by: uid() }, { merge: true }); return id;
+    },
+    async deleteRuleSet(id) { await fs.deleteDoc(fs.doc(db, 'ruleSets', id)); },
     watchHouseRules(cb) { return fs.onSnapshot(fs.doc(db, 'settings', 'house'), (s) => s.exists() && cb(s.data())); },
     // Gemini via Firebase AI Logic (Gemini Developer API backend). Loaded only when first used.
     async generate(modelName, parts, generationConfig = {}) {
@@ -178,6 +185,18 @@ function createLocalStore() {
       if (r.secretPin == null || String(pin) !== r.secretPin) { const e = new Error('Wrong PIN'); e.code = 'permission-denied'; throw e; }
       r.room.hostUid = this.uid(); r.room.hostName = name || 'Host'; save(db); notify();
     },
+    watchRuleSets(cb) {
+      const get = () => { try { return Object.entries(JSON.parse(localStorage.getItem('mjsg-demo-rulesets')) || {}).map(([id, x]) => ({ id, ...x })); } catch { return []; } };
+      window.addEventListener('storage', (e) => { if (e.key === 'mjsg-demo-rulesets') cb(get()); });
+      this._rsCb = () => cb(get()); cb(get()); return () => {};
+    },
+    async saveRuleSet(id, data) {
+      let all = {}; try { all = JSON.parse(localStorage.getItem('mjsg-demo-rulesets')) || {}; } catch {}
+      const key = id || newId('rs_');
+      all[key] = { createdAt: Date.now(), ...(all[key] || {}), ...data, lastChange: data.lastChange ? { ...data.lastChange, byUid: this.uid() } : (all[key]?.lastChange || null), updatedAt: Date.now() };
+      localStorage.setItem('mjsg-demo-rulesets', JSON.stringify(all)); this._rsCb?.(); return key;
+    },
+    async deleteRuleSet(id) { let all = {}; try { all = JSON.parse(localStorage.getItem('mjsg-demo-rulesets')) || {}; } catch {} delete all[id]; localStorage.setItem('mjsg-demo-rulesets', JSON.stringify(all)); this._rsCb?.(); },
     watchHouseRules(cb) { const h = () => { try { const x = JSON.parse(localStorage.getItem('mjsg-demo-house')); if (x) cb(x); } catch {} }; window.addEventListener('storage', (e) => { if (e.key === 'mjsg-demo-house') h(); }); return () => {}; },
     async createRoom(data) {
       const db = load();

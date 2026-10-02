@@ -22,6 +22,17 @@ service cloud.firestore {
         && request.resource.data.minTai is int;
     }
 
+    // Extra rule sets (Default = settings/house). Anyone can add, edit or delete; every phone is notified.
+    match /ruleSets/{id} {
+      allow read: if signedIn();
+      allow create, update: if signedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
+        && request.resource.data.rules.taiCap is int
+        && request.resource.data.rules.taiCap >= 1 && request.resource.data.rules.taiCap <= 13;
+      allow delete: if signedIn();
+    }
+
     // Player directory.
     match /players/{id} {
       allow read: if signedIn();

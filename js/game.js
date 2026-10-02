@@ -1,8 +1,11 @@
 // Live game table: seats, dealer, record win / instant payout / draw / manual adjust, audit log, undo, finish.
 import { audit, basePoints, winDeltas, instantDeltas, manualDeltas, INSTANT_KINDS, BAO_REASONS, DEFAULT_SETTINGS, MAX_TAI } from './scoring.js';
-import { dealerState, tableSettings, WIND_NAMES } from './rules.js';
+import { dealerState, tableSettings, WIND_NAMES, mergeRules } from './rules.js';
 import { prefs, zh, unit, myName, setMyName, rulesDiff } from './prefs.js';
-import { openWizard } from './wizard.js';
+import { openSim } from './sim.js';
+import { tiles as tileRow } from './tileui.js';
+import { setTiles, THIRTEEN } from './handcalc.js';
+import { ruleSet } from './rulesets.js';
 import { notify } from './notify.js';
 import { listToSelection } from './hand.js';
 import { patternText, gameNumber } from './recap-core.js';
@@ -29,7 +32,7 @@ const canEdit = () => !readOnly() && isHost();
 const me = () => v.members.find((m) => m.uid === myUid() || m.id === myUid());
 const mySeat = () => { const m = me(); return m && Number.isInteger(m.seat) && m.seat >= 0 ? m.seat : null; };
 const joinUrl = () => location.href.split('#')[0] + '#/t/' + v.room.code;
-const wizardRules = () => ({ ...prefs.rules, ...S(), tai: prefs.rules.tai });
+const wizardRules = () => mergeRules({ ...prefs.rules, ...S(), tai: S().tai || prefs.rules.tai });
 const roundNo = () => v.events.filter((e) => !e.voided && (e.type === 'win' || e.type === 'draw')).length + 1;
 
 export function stopGame() { v.unsubs.forEach((f) => f && f()); v.unsubs = []; closeSheet(); }
@@ -64,7 +67,7 @@ function describe(ev) {
     case 'win': {
       const how = ev.baoBy != null ? `pay-all by ${p(ev.baoBy)}${ev.baoReason && BAO_REASONS[ev.baoReason] ? ` · ${esc(BAO_REASONS[ev.baoReason].label.toLowerCase())}` : ''}`
         : ev.selfDraw ? `self-draw ${zh('自摸')}` : `off ${p(ev.shooter)}'s discard`;
-      const pat = ev.patterns?.length ? `<div class="small muted">${esc(patternText(ev.patterns, false))}</div>` : '';
+      const pat = (ev.hand ? handMini(ev.hand) : '') + (ev.patterns?.length ? `<div class="small muted">${esc(patternText(ev.patterns, false))}</div>` : '');
       return `🀄 ${p(ev.winner)} won · ${ev.tai} Tai${ev.tai > (ev.cap || cap()) ? ` → ${ev.cap || cap()}` : ''} (base ${basePoints(ev.tai, ev.cap || MAX_TAI)}) · ${how}${pat}${ev.remarks ? `<div class="small muted">“${esc(ev.remarks)}”</div>` : ''}`;
     }
     case 'instant': { const k = INSTANT_KINDS[ev.kind] || { label: ev.kind, icon: '⚡' }; return `${k.icon} ${p(ev.player)} · ${esc(k.label)} ${zh(k.zh)}${ev.notes ? `<div class="small muted">${esc(ev.notes)}</div>` : ''}`; }
@@ -113,8 +116,8 @@ function render($app) {
       </div>`; }).join('')}</div>
 
     ${!ctl ? '' : `
-    <button class="bigwin" data-act="win">🀄 Record Win <span>Easy questions — the app counts the Tai for you</span></button>
-    <button type="button" class="linkbtn" data-act="winAdvanced">I know the patterns — pick them myself (advanced)</button>
+    <button class="bigwin" data-act="win">🀄 Record Win <span>Build the hand — the app finds the pattern & counts the Tai</span></button>
+    <div class="row-between"><button type="button" class="linkbtn" data-act="sim">🧪 Just simulate (not saved)</button><button type="button" class="linkbtn" data-act="winAdvanced">Advanced picker</button></div>
     <div class="actgrid">
       <button data-act="instant"><span>⚡</span><b>Instant payout</b><small>Kongs & flowers</small></button>
       <button data-act="draw"><span>🔁</span><b>Draw round</b><small>Dead wall (0 pts)</small></button>
@@ -159,11 +162,12 @@ function histItem(ev, actions = true) {
 }
 
 function rulesNote() {
-  const cur = tableSettings(prefs.rules); const s = S();
-  const differ = Object.keys(cur).some((k) => String(cur[k]) !== String(s[k] ?? ''));
-  return `<details class="card rulesbox"><summary>Table rules · min ${s.minTai} · cap ${cap() >= 13 ? 'none' : cap()} · kong ${s.exposedKong}/${s.concealedKong} · pay-all ${s.baoMultiplier}×</summary>
-    <p class="small muted">Rules are saved with the game when it starts.${differ ? ' Your ⚙️ house rules have changed since.' : ' ✓ Same as the current house rules.'}</p>
-    ${differ && canEdit() ? '<button class="btn sm" data-act="applyRules">Apply current house rules to this game</button> <span class="small muted">Only affects new entries.</span>' : ''}</details>`;
+  const s = S(); const set = ruleSet(s.ruleSetId || 'default');
+  const cur = tableSettings(set.rules);
+  const differ = Object.keys(cur).some((k) => JSON.stringify(cur[k] ?? null) !== JSON.stringify(s[k] ?? (k === 'tai' ? cur[k] : null)));
+  return `<details class="card rulesbox"><summary>📏 ${esc(s.ruleSetName || 'Default')} rules · min ${s.minTai} · cap ${cap() >= 13 ? 'none' : cap()} · kong ${s.exposedKong}/${s.concealedKong} · pay-all ${s.baoMultiplier}×</summary>
+    <p class="small muted">Rules are saved with the game when it starts.${differ ? ` The “${esc(set.name)}” rule set has changed since.` : ` ✓ Same as the current “${esc(set.name)}” rule set.`}</p>
+    ${differ && canEdit() ? '<button class="btn sm" data-act="applyRules">Apply the updated rules to this game</button> <span class="small muted">Only affects new entries.</span>' : ''}</details>`;
 }
 
 /* ---------- actions ---------- */
@@ -178,6 +182,7 @@ async function onClick(e, $app) {
   if (act === 'hosttools') return hostTools();
   if (act === 'takeover') return takeOver();
   if (act === 'iwon') return playerWin();
+  if (act === 'sim') return simulateOnly();
   if (act === 'iclaim') return playerInstant();
   if (act === 'start') {
     const seated = v.members.filter((m) => Number.isInteger(m.seat) && m.seat >= 0).length;
@@ -227,7 +232,7 @@ async function onClick(e, $app) {
     setCurrentGame(''); invalidate(); toast('Game ended'); location.hash = '#/'; return;
   }
   if (act === 'applyRules') {
-    const next = tableSettings(prefs.rules);
+    const set = ruleSet(S().ruleSetId || 'default'); const next = { ...tableSettings(set.rules), ruleSetId: set.id, ruleSetName: set.name };
     await app.store.updateRoomSettings(v.room.code, next); v.room.settings = next; toast('Game now uses your house rules'); return render($app);
   }
 }
@@ -307,7 +312,7 @@ function winSheet(editEv = null) {
     onMount(api) {
       const footerSafe = () => (api.body.querySelector('#winPreview') ? footer() : '');
       const mkPicker = () => createPicker(api.body.querySelector('#pickerBox'), {
-        rules: () => ({ ...prefs.rules, ...s, tai: prefs.rules.tai }), context: ctx, onChange: () => api.setFoot(footerSafe()),
+        rules: wizardRules, context: ctx, onChange: () => api.setFoot(footerSafe()),
       });
       // Re-render the top steps but keep the pattern selection.
       const rebuild = () => { const state = captureState(picker); api.setBody(top()); picker = mkPicker(); restoreState(picker, state); api.setFoot(footerSafe()); };
@@ -436,6 +441,17 @@ function logSheet() {
 }
 
 /* ================= Host control · lobby · player requests ================= */
+/** Small picture of a stored winning hand. */
+function handMini(hd) {
+  if (!hd) return '';
+  const g = hd.kind === 'normal' && hd.sets ? [...hd.sets.map(setTiles), [hd.pair, hd.pair]] : hd.kind === 'sevenPairs' ? (hd.pairs || []).map((t) => [t, t]) : hd.kind === 'thirteen' ? [[...THIRTEEN, hd.thirteenDouble]] : [];
+  return g.length ? `<div class="handmini">${g.map((x) => tileRow(x, { small: true })).join('')}</div>` : '';
+}
+const simulateOnly = () => {
+  const seat = mySeat();
+  openSim({ mode: 'calc', rules: wizardRules(), ruleSetName: S().ruleSetName || 'Default', seatWind: seat != null ? seatWindOf(seat) : 0, roundWind: ROUND().round || 0 });
+};
+
 const seatOwner = (i) => v.members.find((m) => m.seat === i);
 const ROUND = () => dealerState(v.events, S());
 const seatWindOf = (i) => { const ds = ROUND(); return ds.enabled ? (i - ds.dealer + 4) % 4 : i; };
@@ -462,7 +478,7 @@ function roomChanged(old, n) {
 function requestText(q) {
   if (q.type === 'instant') { const k = INSTANT_KINDS[q.kind] || { label: q.kind, icon: '⚡' }; return `${k.icon} ${esc(v.room.players[q.player] ?? q.byName)} · ${esc(k.label)}`; }
   const how = q.method === 'self' ? 'self-draw' : q.method === 'discard' ? `off ${esc(v.room.players[q.shooter] ?? '?')}'s discard` : `pay-all by ${esc(v.room.players[q.baoBy] ?? '?')}`;
-  return `🀄 <b>${esc(v.room.players[q.winner] ?? q.byName)}</b> won · <b>${q.tai} Tai</b> · ${how}${q.patterns?.length ? `<div class="small muted">${esc(patternText(q.patterns, false))}</div>` : ''}`;
+  return `🀄 <b>${esc(v.room.players[q.winner] ?? q.byName)}</b> won · <b>${q.tai} Tai</b> · ${how}${handMini(q.hand)}${q.patterns?.length ? `<div class="small muted">${esc(patternText(q.patterns, false))}</div>` : ''}`;
 }
 
 function requestsChanged(old, list) {
@@ -510,7 +526,8 @@ function playerPanel() {
   const mine = v.requests.filter((q) => q.byUid === myUid()).slice(-4).reverse();
   const st = { pending: '⏳ waiting for host', approved: '✅ approved', rejected: '❌ rejected', cancelled: 'cancelled' };
   if (seat == null && me()?.seat !== -1) return seatChooser('Which player are you?');
-  return `${seat != null ? `<button class="bigwin" data-act="iwon">🙋 I won! <span>Answer easy questions — the app counts your Tai and sends it to the host</span></button>
+  return `${seat != null ? `<button class="bigwin" data-act="iwon">🙋 I won! <span>Build your hand — the app counts the Tai and sends it to the host</span></button>
+    <button type="button" class="btn block simbtn" data-act="sim">🧪 Simulate my hand — check the points (not saved)</button>
     <div class="actgrid two"><button data-act="iclaim"><span>⚡</span><b>Kong / flowers</b><small>ask for an instant payout</small></button>
       <button data-seatme="-2"><span>💺</span><b>You are ${pname(seat)}</b><small>tap to change seat</small></button></div>` : `<div class="banner small">👀 Watching only. <button class="btn sm" data-seatme="-2">Pick my seat</button></div>`}
     ${mine.length ? `<section class="card"><h2>My requests</h2><ul class="hist">${mine.map((q) => `<li><div><div class="desc">${requestText(q)}</div><div class="meta">${st[q.status] || esc(q.status)}</div></div>
@@ -623,6 +640,7 @@ function takeOver() {
 function winEventFrom(m) {
   const s = S();
   const ev = { type: 'win', winner: m.winner, tai: m.tai, cap: cap(), patterns: m.patterns || [], remarks: m.remarks || null };
+  if (m.hand) ev.hand = m.hand;
   if (m.method === 'self') Object.assign(ev, { selfDraw: true, shooter: null });
   else if (m.method === 'discard') { if (m.shooter == null) throw new Error('Missing discarder'); Object.assign(ev, { selfDraw: false, shooter: m.shooter }); }
   else { if (m.baoBy == null) throw new Error('Missing responsible player'); Object.assign(ev, { selfDraw: !!m.baoSelf, shooter: m.baoSelf ? null : m.baoBy, baoBy: m.baoBy, baoReason: m.baoReason || 'thirdDragon', baoMultiplier: s.baoMultiplier }); }
@@ -630,10 +648,10 @@ function winEventFrom(m) {
   return ev;
 }
 
-const wizardBase = () => ({ players: v.room.players, seatWindOf, roundWind: ROUND().round || 0, rules: wizardRules() });
+const wizardBase = () => ({ players: v.room.players, seatWindOf, roundWind: ROUND().round || 0, rules: wizardRules(), ruleSetName: S().ruleSetName || 'Default' });
 
 function hostWin() {
-  openWizard({
+  openSim({
     ...wizardBase(), mode: 'host', onAdvanced: () => winSheet(),
     async onSubmit(res) { try { const ev = winEventFrom(res); return await save(ev, `Win recorded: ${sign(ev.deltas[ev.winner])} ${unit()}`); } catch (err) { toast(err.message); return false; } },
   });
@@ -642,13 +660,13 @@ function hostWin() {
 function playerWin() {
   const seat = mySeat(); if (seat == null) return toast('Pick your seat first');
   if (v.requests.some((q) => q.byUid === myUid() && q.status === 'pending' && q.type === 'win')) return toast('You already have a win waiting for the host');
-  openWizard({
+  openSim({
     ...wizardBase(), mode: 'player', presetWinner: seat,
     async onSubmit(res) {
       try {
         winEventFrom(res); // validates
         await app.store.addRequest(v.room.code, { type: 'win', byName: v.room.players[seat], winner: seat, method: res.method, shooter: res.shooter ?? null, baoBy: res.baoBy ?? null,
-          baoReason: res.method === 'bao' ? res.baoReason : null, baoSelf: !!res.baoSelf, tai: res.tai, patterns: res.patterns });
+          baoReason: res.method === 'bao' ? res.baoReason : null, baoSelf: !!res.baoSelf, tai: res.tai, patterns: res.patterns, hand: res.hand || null });
         closeSheet(); toast('📨 Sent! The host will approve it.'); return true;
       } catch (err) { console.error(err); toast('Could not send: ' + (err.code || err.message)); return false; }
     },

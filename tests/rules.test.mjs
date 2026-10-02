@@ -28,7 +28,8 @@ t('friend-app defaults', () => {
 t('table snapshot has scoring fields', () => {
   const s = tableSettings(mergeRules({}));
   assert.equal(s.taiCap, HOUSE_DEFAULTS.taiCap);
-  assert.ok(!('tai' in s));
+  assert.deepEqual(s.tai, {}); // rule-set Tai values travel with the game
+  assert.equal(tableSettings(mergeRules({ tai: { allPong: 3 } })).tai.allPong, 3);
 });
 t('dealer: stays on dealer win, rotates otherwise, round advances', () => {
   let d = dealerState([win(0), win(0)]);

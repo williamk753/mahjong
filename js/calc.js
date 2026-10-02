@@ -2,25 +2,29 @@
 import { createPicker } from './picker.js';
 import { prefs, zh, unit } from './prefs.js';
 import { winDeltas } from './scoring.js';
-import { esc, sign, closeSheet } from './ui.js';
-import { openWizard } from './wizard.js';
+import { esc, sign } from './ui.js';
+import { mountSim } from './sim.js';
 
 const st = { method: 'self' };
 
 export function renderCalc($app) {
   $app.innerHTML = `
-    <div class="pagehead"><h1>🧮 Score calculator</h1><p class="muted">Work out Tai and points for any hand — nothing is saved.</p></div>
-    <button class="bigwin" data-help>🧭 Help me count my hand <span>Don't know the patterns? Answer easy questions about your tiles</span></button>
-    <h3>Or pick the patterns yourself</h3>
-    <section class="card">
+    <div class="pagehead"><h1>🧪 Winning hand simulator</h1><p class="muted">Build a hand to see the winning pattern, where every Tai comes from and the payout. Nothing is saved.</p></div>
+    <section class="card simcard" id="simBox"></section>
+    <details class="card advcalc" id="advCalc"><summary><b>Advanced:</b> pick the patterns by name</summary>
       <div class="methods">
         <button type="button" data-m="self" class="${st.method === 'self' ? 'on' : ''}"><b>Self-draw ${zh('自摸')}</b><small>All 3 pay 2×</small></button>
         <button type="button" data-m="discard" class="${st.method === 'discard' ? 'on' : ''}"><b>Discard win ${zh('点炮')}</b><small>Discarder 2×, others 1×</small></button>
         <button type="button" data-m="bao" class="${st.method === 'bao' ? 'on' : ''}"><b>Pay-all ${zh('包赔')}</b><small>Responsible ${prefs.rules.baoMultiplier}×</small></button>
       </div>
-      <div id="calcPicker"></div>
-    </section>
-    <section class="card" id="calcOut"></section>`;
+      <div id="calcPicker"></div><div id="calcOut"></div>
+    </details>`;
+  mountSim(document.getElementById('simBox'), { mode: 'calc' });
+  let started = false;
+  document.getElementById('advCalc').addEventListener('toggle', (e) => { if (e.target.open && !started) { started = true; startAdvanced($app); } });
+}
+
+function startAdvanced($app) {
   const out = () => document.getElementById('calcOut');
   const show = (ev) => {
     const el = out(); if (!el) return;
@@ -39,11 +43,10 @@ export function renderCalc($app) {
     rules: () => prefs.rules, context: () => ({ selfDraw: st.method === 'self' }), onChange: show, allowTaiMode: true,
   });
   show(picker.evaluate());
-  $app.onclick = (e) => {
-    if (e.target.closest('[data-help]')) return openWizard({ mode: 'calc', rules: prefs.rules, onSubmit: () => { closeSheet(); return true; } });
-    const b = e.target.closest('[data-m]'); if (!b) return;
+  document.getElementById('advCalc').onclick = (e) => {
+    const b = e.target.closest('.methods [data-m]'); if (!b) return;
     st.method = b.dataset.m;
-    $app.querySelectorAll('[data-m]').forEach((x) => x.classList.toggle('on', x === b));
+    $app.querySelectorAll('.methods [data-m]').forEach((x) => x.classList.toggle('on', x === b));
     picker.refresh();
   };
 }

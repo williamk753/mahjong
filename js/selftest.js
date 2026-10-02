@@ -5,7 +5,7 @@ import { evaluateHand, emptySelection, selectionToList, listToSelection } from '
 import { computeLeaderboard } from './stats.js';
 import { buildRecap, recapText } from './recap-core.js';
 import { parseScan, buildScanPrompt } from './scan-core.js';
-import { answersToSelection, blankAnswers } from './wizard-core.js';
+import { blankHand, simulate } from './handcalc.js';
 
 const eq = (a, b, msg) => {
   const A = JSON.stringify(a), B = JSON.stringify(b);
@@ -127,27 +127,26 @@ export const TESTS = [
     ok(/allPong/.test(buildScanPrompt(R(), { seatWind: 'East', seatNo: 1 })), 'prompt lists pattern ids');
     let threw = false; try { parseScan('sorry, I cannot see'); } catch { threw = true; } ok(threw, 'non-JSON rejected');
   }],
-  ['Guided helper: beginner answers', 'Plain answers (runs, one suit, seat flower, concealed) become the right patterns and Tai.', () => {
-    const A = (o) => ({ ...blankAnswers(), ...o });
-    const ev = (a, ctx) => evaluateHand(answersToSelection(a, ctx).selection, R(), ctx);
-    // runs + normal pair + 2-sided wait + no flowers = Ping Hu 4
-    eq(ev(A({ shape: 'chow', pairOk: true, twoSided: true, suit: 'mixed' }), { seatNo: 1 }).actual, 4);
-    // same but with own flower -> All Chow 1 + flower 1
-    eq(ev(A({ shape: 'chow', pairOk: true, twoSided: true, suit: 'mixed', flowers: [1] }), { seatNo: 1 }).actual, 2);
-    // flower that is not your seat number scores nothing
-    eq(ev(A({ shape: 'pong', suit: 'mixed', flowers: [3] }), { seatNo: 1 }).actual, 2);
-    // all pong + full colour + concealed + 1 kong = 2+4+1+1
-    eq(ev(A({ shape: 'pong', suit: 'full', concealed: true, kongs: 1 }), { seatNo: 2 }).actual, 8);
-    // 3 dragon sets -> Big Three Dragons limit (7)
-    eq(ev(A({ shape: 'mixed', dragons: 3 }), {}).actual, 7);
-    // 2 dragon sets + dragon pair -> 2 + small three dragons 1
-    eq(ev(A({ shape: 'mixed', dragons: 2, dragonPair: true }), {}).actual, 3);
-    // animals: cat + mouse = 2 animals + 1 pair (2) = 4
-    eq(ev(A({ shape: 'pong', animals: ['cat', 'mouse'] }), {}).actual, 2 + 2 + 2);
-    // all 8 bonus tiles -> Eight Flowers
-    eq(answersToSelection(A({ shape: 'mixed', flowers: [1, 2, 3, 4], seasons: [1, 2, 3, 4] }), { seatNo: 1 }).selection.limit, 'eightFlowers');
-    // seat wind = round wind counts once by default
-    eq(ev(A({ shape: 'pong', seatWind: true, roundWind: true }), { sameWind: true }).actual, 3);
+  ['Winning-hand simulator: tiles → patterns', 'Built hands are recognised (Ping Hu, All Pong, dragons, winds, flowers, Seven Pairs, limits) and illegal hands rejected.', () => {
+    const H = (sets, pair, o = {}) => ({ ...blankHand(), sets: sets.map(([type, tile, open]) => ({ type, tile, open: !!open })), pair, ...o });
+    const sim = (h, ctx = {}) => simulate(h, R(), ctx);
+    // 4 runs + plain pair + 2-sided wait, no flowers -> Ping Hu 4 + concealed 1
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 } })).actual, 5);
+    // same with own seat flower -> All Chow 1 + concealed 1 + flower 1
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, flowers: [1] }), { seatWind: 0 }).actual, 3);
+    // edge wait (7-8-9 won on the 7) is not Ping Hu
+    eq(sim(H([['chow', 'm7'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm1']], 'p9', { winTile: { slot: 0, i: 0 } })).selection.base, 'allChow');
+    // all pong (one called) + 2 dragon pongs + dragon pair -> 2 + 2 + small dragons 1
+    const r = sim(H([['pong', 'd1', true], ['pong', 'd2'], ['pong', 'p3'], ['pong', 'm8']], 'd3'));
+    eq(r.actual, 5); ok(r.headline.includes('All Pong'), 'All Pong named');
+    // one suit + winds -> Half Colour
+    eq(sim(H([['pong', 'w1', true], ['chow', 's1'], ['chow', 's4'], ['pong', 's9', true]], 's5'), { seatWind: 0, roundWind: 1 }).selection.suit, 'halfColour');
+    // three dragon sets -> Big Three Dragons
+    eq(sim(H([['pong', 'd1'], ['pong', 'd2'], ['kong', 'd3'], ['chow', 'm1']], 'p2')).selection.limit, 'bigDragons');
+    // seven pairs self-draw, one suit = 7 + 4
+    eq(sim({ ...blankHand(), kind: 'sevenPairs', pairs: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'] }, { selfDraw: true }).actual, 11);
+    // a tile used more than 4 times is rejected
+    ok(!sim(H([['pong', 'm1'], ['pong', 'm1'], ['chow', 'p1'], ['chow', 'p4']], 's2')).valid, 'too many tiles rejected');
   }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);
