@@ -33,14 +33,6 @@ service cloud.firestore {
       allow delete: if signedIn();
     }
 
-    // Daily AI photo-scan counter: one doc per day, can only go up by 1 at a time (max 100).
-    match /usage/{id} {
-      allow read: if signedIn();
-      allow create: if signedIn() && request.resource.data.count == 1;
-      allow update: if signedIn() && request.resource.data.count == resource.data.count + 1 && request.resource.data.count <= 100;
-      allow delete: if false;
-    }
-
     // Player directory.
     match /players/{id} {
       allow read: if signedIn();

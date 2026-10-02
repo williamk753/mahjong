@@ -19,10 +19,6 @@ export const newId = (prefix = '') => prefix + randomCode(12).toLowerCase();
 
 export const isDemo = !firebaseConfig.apiKey || firebaseConfig.apiKey === 'REPLACE_ME';
 
-/** Google's free quota resets at midnight US Pacific time — count our daily scans on the same calendar. */
-export const aiDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
-const limitError = (limit) => { const e = new Error(`Today's ${limit} photo scans are used up (shared by everyone). It resets at midnight US Pacific time — pick the tiles by hand until then.`); e.code = 'ai-limit'; return e; };
-
 const ROOM_EDITABLE = ['settings', 'status', 'finishedAt', 'location', 'notes', 'scorekeeper', 'hostUid', 'hostName', 'lastChange', 'startedAt', 'hasPin'];
 
 /* ---------------- Firebase ---------------- */
@@ -33,12 +29,11 @@ async function createFirebaseStore() {
     import(`${FB}/firebase-auth.js`),
   ]);
   const app = initializeApp(firebaseConfig);
-  // App Check: only when a reCAPTCHA site key is set in js/config.js (needed if App Check is enforced for AI Logic).
+  // App Check: only when a reCAPTCHA v3 site key is set in js/config.js (needed if App Check is enforced for AI Logic).
   if (firebaseConfig.appCheckSiteKey) {
     try {
       const ac = await import(`${FB}/firebase-app-check.js`);
-      const Provider = firebaseConfig.appCheckProvider === 'v3' ? ac.ReCaptchaV3Provider : ac.ReCaptchaEnterpriseProvider;
-      ac.initializeAppCheck(app, { provider: new Provider(firebaseConfig.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+      ac.initializeAppCheck(app, { provider: new ac.ReCaptchaV3Provider(firebaseConfig.appCheckSiteKey), isTokenAutoRefreshEnabled: true });
     } catch (err) { console.warn('App Check not started', err); }
   }
   const db = fs.getFirestore(app);
@@ -72,17 +67,6 @@ async function createFirebaseStore() {
       await fs.setDoc(fs.doc(db, 'ruleSets', id), { ...data, lastChange: data.lastChange ? { ...data.lastChange, byUid: uid() } : null, updatedAt: Date.now(), by: uid() }, { merge: true }); return id;
     },
     async deleteRuleSet(id) { await fs.deleteDoc(fs.doc(db, 'ruleSets', id)); },
-    /* ---- daily AI scan counter (shared by all phones) ---- */
-    async aiScansLeft(limit) { const s = await fs.getDoc(fs.doc(db, 'usage', `ai-${aiDay()}`)); return Math.max(0, limit - (s.exists() ? s.data().count || 0 : 0)); },
-    async useAiScan(limit) {
-      const ref = fs.doc(db, 'usage', `ai-${aiDay()}`);
-      return fs.runTransaction(db, async (tx) => {
-        const s = await tx.get(ref); const n = s.exists() ? s.data().count || 0 : 0;
-        if (n >= limit) throw limitError(limit);
-        tx.set(ref, { count: n + 1, day: aiDay(), updatedAt: Date.now() });
-        return limit - n - 1;
-      });
-    },
     watchHouseRules(cb) { return fs.onSnapshot(fs.doc(db, 'settings', 'house'), (s) => s.exists() && cb(s.data())); },
     // Gemini via Firebase AI Logic (Gemini Developer API backend). Loaded only when first used.
     async generate(modelName, parts, generationConfig = {}) {
@@ -207,12 +191,6 @@ function createLocalStore() {
       const db = load(); const r = db.rooms[code];
       if (r.secretPin == null || String(pin) !== r.secretPin) { const e = new Error('Wrong PIN'); e.code = 'permission-denied'; throw e; }
       r.room.hostUid = this.uid(); r.room.hostName = name || 'Host'; save(db); notify();
-    },
-    async aiScansLeft(limit) { let u = {}; try { u = JSON.parse(localStorage.getItem('mjsg-demo-ai')) || {}; } catch {} return Math.max(0, limit - (u[aiDay()] || 0)); },
-    async useAiScan(limit) {
-      let u = {}; try { u = JSON.parse(localStorage.getItem('mjsg-demo-ai')) || {}; } catch {}
-      const n = u[aiDay()] || 0; if (n >= limit) throw limitError(limit);
-      localStorage.setItem('mjsg-demo-ai', JSON.stringify({ [aiDay()]: n + 1 })); return limit - n - 1;
     },
     watchRuleSets(cb) {
       const get = () => { try { return Object.entries(JSON.parse(localStorage.getItem('mjsg-demo-rulesets')) || {}).map(([id, x]) => ({ id, ...x })); } catch { return []; } };

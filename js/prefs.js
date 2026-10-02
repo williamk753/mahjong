@@ -32,7 +32,7 @@ export const setMyName = (n) => { try { if (n) localStorage.setItem(ME_KEY, n); 
 let lastSaved = JSON.parse(JSON.stringify(prefs.rules));
 const LABELS = { minTai: 'Minimum Tai', taiCap: 'Tai cap', exposedKong: 'Exposed kong payout', concealedKong: 'Concealed kong payout', flowerSet: 'Flower set payout',
   flowerPair: 'Flower pair payout', baoMultiplier: 'Pay-all multiplier', autoDealer: 'Auto dealer', drawRule: 'Draw round dealer', doubleWind: 'Seat = round wind',
-  winCircumstance: 'Win-circumstance Tai', scoreLabel: 'Score label', finalWallStacks: 'Final-wall stacks', aiScan: 'AI hand scan', aiModel: 'AI model', aiDailyLimit: 'Photo scans per day' };
+  winCircumstance: 'Win-circumstance Tai', scoreLabel: 'Score label', finalWallStacks: 'Final-wall stacks', aiScan: 'AI hand scan', aiModel: 'AI model' };
 const show = (k, v) => (typeof v === 'boolean' ? (v ? 'on' : 'off') : k === 'taiCap' && v >= 13 ? 'no cap' : String(v));
 
 /** Plain-language list of what changed between two rule sets, e.g. "Tai cap 5 → 6". */
