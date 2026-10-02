@@ -13,7 +13,7 @@ import { esc, toast } from './ui.js';
 const ORT_VER = '1.20.1';
 const ORT_DIR = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VER}/dist/`;
 const LOG_KEY = 'mjsg-detect-log';
-const st = { session: null, meta: null, source: '', conf: 0.35, busy: false, last: null };
+const st = { session: null, meta: null, source: '', conf: 0.25, busy: false, last: null };
 
 const readLog = () => { try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch { return []; } };
 const writeLog = (l) => { try { localStorage.setItem(LOG_KEY, JSON.stringify(l.slice(0, 100))); } catch {} };
@@ -60,7 +60,11 @@ async function runDetector(file) {
     const o = out[st.session.outputNames[0]];
     const boxes = decodeYolo(o.data, o.dims, { conf: st.conf, lb }).map((b) => {
       const raw = st.meta.names[b.cls] ?? `class ${b.cls}`;
-      return { ...b, raw, code: mapClass(raw, st.meta.map) };
+      let code = mapClass(raw, st.meta.map);
+      // Flowers/seasons were trained on few photos: an unsure flower is more often a number tile → use the 2nd guess.
+      const altCode = b.alt >= 0 ? mapClass(st.meta.names[b.alt] ?? '', st.meta.map) : null;
+      if (code && /^[FS]\d$/.test(code) && b.score < 0.6 && altCode && !/^[FS]\d$/.test(altCode) && b.altScore > 0.1) return { ...b, raw, code: altCode, swapped: code };
+      return { ...b, raw, code };
     }).sort((a, b) => a.x1 - b.x1);
     return { img, boxes, ms };
   } finally { setTimeout(() => URL.revokeObjectURL(url), 5000); }
@@ -73,10 +77,11 @@ function drawBoxes(canvas, img, boxes) {
   g.lineWidth = 2; g.font = 'bold 14px system-ui';
   for (const b of boxes) {
     const x = b.x1 * scale; const y = b.y1 * scale; const w = (b.x2 - b.x1) * scale; const h = (b.y2 - b.y1) * scale;
-    g.strokeStyle = b.code ? '#16a34a' : '#dc2626'; g.strokeRect(x, y, w, h);
+    const col = !b.code ? '#dc2626' : b.score < 0.5 || b.swapped ? '#d97706' : '#16a34a'; // red unknown · orange unsure · green sure
+    g.strokeStyle = col; g.setLineDash(col === '#d97706' ? [6, 4] : []); g.strokeRect(x, y, w, h); g.setLineDash([]);
     const label = `${b.code ? b.code.startsWith('A:') ? b.code.slice(2) : /^[FS]\d$/.test(b.code) ? (b.code[0] === 'F' ? 'Flower ' : 'Season ') + b.code[1] : tileName(b.code) : b.raw} ${Math.round(b.score * 100)}%`;
-    g.fillStyle = b.code ? '#16a34a' : '#dc2626'; const tw = g.measureText(label).width + 6;
-    g.fillRect(x, Math.max(0, y - 18), tw, 18); g.fillStyle = '#fff'; g.fillText(label, x + 3, Math.max(13, y - 5));
+    g.fillStyle = col; const tw = g.measureText(label).width + 6;
+    g.fillRect(x + 1, y + 1, tw, 18); g.fillStyle = '#fff'; g.fillText(label + (b.swapped ? ' ?' : ''), x + 4, y + 15); // label inside the box
   }
 }
 
@@ -107,7 +112,7 @@ export function renderDetector($app) {
         <label class="btn primary block big ${st.session && !st.busy ? '' : 'disabled'}">${st.busy ? '⏳ Detecting…' : '📷 Take / choose a photo of the hand'}<input type="file" accept="image/*" capture="environment" hidden data-photo /></label>
         <p class="small muted">Tips: lay the 14 tiles in one row, face up, good light, phone straight above.</p>
         ${r ? `<canvas class="detcanvas" id="detCanvas"></canvas>
-          <p class="small">Found <b>${r.boxes.length}</b> boxes in <b>${r.ms} ms</b>${r.boxes.some((b) => !b.code) ? ` · <span class="neg">${r.boxes.filter((b) => !b.code).length} unknown</span>` : ''}</p>
+          <p class="small muted">🟩 sure · 🟧 unsure (check it) · 🟥 unknown name</p><p class="small">Found <b>${r.boxes.length}</b> boxes in <b>${r.ms} ms</b>${r.boxes.some((b) => !b.code) ? ` · <span class="neg">${r.boxes.filter((b) => !b.code).length} unknown</span>` : ''}</p>
           <div class="handline">${tileRow(r.best.tiles)}</div>${bonusHtml(r.best.bonus) ? `<div class="handline bonus">${bonusHtml(r.best.bonus)}</div>` : ''}
           ${r.best.problem ? `<div class="perr">${esc(r.best.problem)}</div>` : `<p>✅ Makes a winning hand · best of ${r.best.options} grouping${r.best.options > 1 ? 's' : ''}: <b>${r.best.tai} Tai</b></p>`}
           <div class="row-gap-h wrap">${r.best.hand ? '<button class="btn primary" data-opensim>🧪 Open in simulator</button>' : ''}<button class="btn" data-fixsim>✏️ Fix in simulator</button>

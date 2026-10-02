@@ -63,12 +63,15 @@ export function decodeYolo(data, dims, { conf = 0.35, iouThr = 0.5, lb = { scale
   }
   const [, ch, n] = dims; const nc = ch - 4;
   for (let i = 0; i < n; i++) {
-    let best = -1; let score = 0;
-    for (let c = 0; c < nc; c++) { const s = data[(4 + c) * n + i]; if (s > score) { score = s; best = c; } }
+    let best = -1; let score = 0; let alt = -1; let altScore = 0;
+    for (let c = 0; c < nc; c++) {
+      const s = data[(4 + c) * n + i];
+      if (s > score) { alt = best; altScore = score; score = s; best = c; } else if (s > altScore) { alt = c; altScore = s; }
+    }
     if (score < conf) continue;
     const cx = data[i]; const cy = data[n + i]; const w = data[2 * n + i]; const h = data[3 * n + i];
     const [x1, y1] = back(cx - w / 2, cy - h / 2); const [x2, y2] = back(cx + w / 2, cy + h / 2);
-    boxes.push({ x1, y1, x2, y2, score, cls: best });
+    boxes.push({ x1, y1, x2, y2, score, cls: best, alt, altScore });
   }
   return nms(boxes, iouThr);
 }
