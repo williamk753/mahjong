@@ -9,7 +9,7 @@ t('defaults and validation', () => {
   const r = mergeRules({ minTai: 9, taiCap: 3, doubleWind: 'x', tai: { allPong: 3, pingHu: 4, bogus: 5, bigDragons: 2 } });
   assert.equal(r.taiCap, 3);
   assert.equal(r.minTai, 3);            // clamped to cap
-  assert.equal(r.doubleWind, '1x');
+  assert.equal(r.doubleWind, '2x');
   assert.deepEqual(r.tai, { allPong: 3, bigDragons: 2 }); // default-equal and unknown entries dropped
   assert.equal(taiValue(r, 'allPong'), 3);
   assert.equal(taiValue(r, 'fullColour'), 4);
@@ -18,7 +18,7 @@ t('defaults and validation', () => {
 t('friend-app defaults', () => {
   const r = mergeRules({});
   assert.deepEqual([r.minTai, r.taiCap, r.winCircumstance, r.doubleWind, r.scoreLabel, r.autoDealer, r.drawRule, r.finalWallStacks],
-    [1, 5, false, '1x', 'pts', true, 'stay', 12]);
+    [1, 5, false, '2x', 'pts', true, 'stay', 12]);
   assert.deepEqual([r.exposedKong, r.concealedKong, r.flowerSet, r.flowerPair, r.baoMultiplier], [2, 4, 4, 2, 6]);
   const tv = (id) => taiValue(r, id);
   assert.deepEqual(['chicken', 'allChow', 'allPong', 'halfColour', 'halfTerminals', 'pingHu', 'fullColour', 'smallDragons', 'sevenPairs', 'sevenPairsSelf'].map(tv), [0, 1, 2, 2, 4, 4, 4, 1, 2, 7]);

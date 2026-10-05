@@ -94,10 +94,10 @@ export const TESTS = [
     eq(evaluateHand(sel({ base: 'allChow', suit: 'fullColour' }), R()).actual, 5);
     eq(evaluateHand(sel({ base: 'sevenPairs', suit: 'halfColour' }), R()).actual, 4);
   }],
-  ['Double wind house rule', 'Seat = prevailing wind pong counts once by default, twice when set to 2x.', () => {
+  ['Double wind house rule', 'Seat = prevailing wind pong counts twice by default (+2), once when set to 1x.', () => {
     const s = sel({ base: 'allPong', flags: { seatWind: true, roundWind: true } });
-    eq(evaluateHand(s, R(), { sameWind: true }).actual, 3);
-    eq(evaluateHand(s, mergeRules({ doubleWind: '2x' }), { sameWind: true }).actual, 4);
+    eq(evaluateHand(s, R(), { sameWind: true }).actual, 4);
+    eq(evaluateHand(s, mergeRules({ doubleWind: '1x' }), { sameWind: true }).actual, 3);
   }],
   ['Manual adjust is zero-sum', 'Adjustments must add up to 0.', () => {
     eq(manualDeltas([10, -5, -5, 0]), [10, -5, -5, 0]);

@@ -61,7 +61,7 @@ export const HOUSE_DEFAULTS = {
   minTai: 1,
   taiCap: MAX_TAI,
   winCircumstance: false,       // +1 Tai special wins (off by default)
-  doubleWind: '1x',             // seat wind = prevailing wind: count once (1x) or twice (2x)
+  doubleWind: '2x',             // seat wind = prevailing wind: count twice (2x, SG standard) or once (1x)
   scoreLabel: 'pts',
   finalWallStacks: 12,           // pay-all fresh-tile window (stacks left in the wall)
   leaderboardResetAt: 0,         // rankings ignore games created before this time
@@ -101,7 +101,7 @@ export function mergeRules(saved = {}) {
   delete r.addedKong; delete r.exposedKongDiscarderPaysAll;
   r.winCircumstance = !!r.winCircumstance;
   r.autoDealer = !!r.autoDealer;
-  if (!['1x', '2x'].includes(r.doubleWind)) r.doubleWind = '1x';
+  if (!['1x', '2x'].includes(r.doubleWind)) r.doubleWind = '2x';
   if (!['stay', 'rotate'].includes(r.drawRule)) r.drawRule = 'stay';
   r.scoreLabel = SCORE_LABELS[r.scoreLabel] ? r.scoreLabel : 'pts';
   const tai = {};

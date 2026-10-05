@@ -67,7 +67,7 @@ function page(store) {
         sel('taiCap', CAP_OPTIONS.map((c) => [c, c === NO_CAP ? 'No cap (unlimited)' : `${c} Tai (base ${basePoints(c, c)} pts${c === HOUSE_DEFAULTS.taiCap ? ' · standard' : ''})`]), CAP_OPTIONS.includes(r.taiCap) ? r.taiCap : HOUSE_DEFAULTS.taiCap))}
       ${row('Win-circumstance Tai (+1)', `Kong replacement ${zh('杠上开花')}, last tile ${zh('海底捞月')}, robbing the kong ${zh('抢杠')}.`, toggle('winCircumstance', r.winCircumstance))}
       ${row('Seat wind = prevailing wind', 'When your seat wind is also the round wind, a pung of it counts…',
-        sel('doubleWind', [['1x', 'Once (+1 Tai, default)'], ['2x', 'Twice (+2 Tai)']], r.doubleWind))}
+        sel('doubleWind', [['2x', 'Twice (+2 Tai, default)'], ['1x', 'Once (+1 Tai)']], r.doubleWind))}
       ${isDefault() ? row('Score label', 'Text shown next to scores.',
         sel('scoreLabel', Object.entries(SCORE_LABELS), r.scoreLabel)) : ''}
     </section>
