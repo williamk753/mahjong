@@ -1,6 +1,7 @@
 // Winning-hand simulator engine (pure, no DOM): tiles -> scoring patterns + where each Tai comes from.
 // Tile codes: m1..m9 characters 万 · p1..p9 dots 筒 · s1..s9 bamboo 索 · w1..w4 East/South/West/North · d1..d3 red 中 / green 發 / white 白
-import { emptySelection, evaluateHand, selectionToList } from './hand.js';
+import { emptySelection, evaluateHand, selectionToList, byId } from './hand.js';
+import { taiValue } from './rules.js';
 
 export const SUITS = {
   m: { name: 'Characters', zh: '万', short: '万' },
@@ -82,7 +83,7 @@ const chowWaitTwoSided = (set, i) => { const n = numOf(set.tile); return (i === 
  * ctx: { seatWind 0-3, roundWind 0-3, selfDraw }
  * Returns { selection, sources: { [patternId]: { text, groups: [[tiles]] } }, name, notes[], problems[] }
  */
-export function analyseHand(h, ctx = {}) {
+export function analyseHand(h, ctx = {}, rules = {}) {
   const sel = emptySelection();
   const src = {}; const notes = [];
   const why = (id, text, groups = []) => { src[id] = { text, groups }; };
@@ -112,10 +113,24 @@ export function analyseHand(h, ctx = {}) {
     const nine = tiles.length === 14 && tiles.every((t) => suitOf(t) === suit && !isHonour(t)) && h.called === false
       && counts[`${suit}1`] >= 3 && counts[`${suit}9`] >= 3 && [2, 3, 4, 5, 6, 7, 8].every((n) => counts[`${suit}${n}`] >= 1);
 
-    if (dragonSets.length === 3) { sel.limit = 'bigDragons'; why('bigDragons', 'Three sets of dragons.', dragonSets.map(setTiles)); }
-    else if (windSets.length === 4) { sel.limit = 'bigWinds'; why('bigWinds', 'Sets of all four winds.', windSets.map(setTiles)); }
-    else if (terminalsOnly) { sel.limit = 'allTerminals'; why('allTerminals', 'Only 1s and 9s, no honours.', [tiles]); }
-    else if (nine) { sel.limit = 'nineGates'; why('nineGates', '1-1-1-2-3-4-5-6-7-8-9-9-9 of one suit, all concealed.', [tiles]); }
+    const kongSets = sets.filter((s) => s.type === 'kong');
+    const GREEN = ['s2', 's3', 's4', 's6', 's8', 'd2'];
+    // Every limit hand the tiles qualify for — the one worth the most Tai (under these rules) wins.
+    const cands = [
+      dragonSets.length === 3 && ['bigDragons', 'Three sets of dragons.', dragonSets.map(setTiles)],
+      windSets.length === 4 && ['bigWinds', 'Sets of all four winds.', windSets.map(setTiles)],
+      terminalsOnly && ['allTerminals', 'Only 1s and 9s, no honours.', [tiles]],
+      nine && ['nineGates', '1-1-1-2-3-4-5-6-7-8-9-9-9 of one suit, all concealed.', [tiles]],
+      tiles.every(isHonour) && ['allHonours', 'Only winds and dragons.', [tiles]],
+      kongSets.length === 4 && ['allKongs', 'Four kongs.', kongSets.map(setTiles)],
+      pongs.length === 4 && h.called === false && ctx.selfDraw && ['fourConcealed', 'Four pongs/kongs all from the wall, self-drawn.', pongs.map(setTiles)],
+      tiles.every((t) => GREEN.includes(t)) && ['pureGreen', 'Only green tiles (bamboo 2-3-4-6-8 and 發).', [tiles]],
+    ].filter(Boolean);
+    if (cands.length) {
+      const [id, text, g] = cands.reduce((a, b) => (taiValue(rules, b[0]) > taiValue(rules, a[0]) ? b : a));
+      sel.limit = id; why(id, text, g);
+      if (cands.length > 1) notes.push(`Also qualifies for ${cands.filter((c) => c[0] !== id).map((c) => byId[c[0]]?.name || c[0]).join(', ')} — only the highest limit hand counts.`);
+    }
   }
   if (!sel.limit && bonusCount === 8) { sel.limit = 'eightFlowers'; sel.base = null; why('eightFlowers', 'All 8 flower & season tiles.'); }
   else if (!sel.limit && bonusCount === 7 && ctx.selfDraw) { sel.limit = 'sevenFlowers'; sel.base = null; why('sevenFlowers', '7 of the 8 flower & season tiles, self-drawn.'); }
@@ -158,6 +173,8 @@ export function analyseHand(h, ctx = {}) {
   }
   if (h.kind === 'normal' && !problems.length && sel.limit !== 'bigWinds') {
     const seat = pongs.find((s) => s.tile === seatW); const round = pongs.find((s) => s.tile === roundW);
+    const windSets = pongs.filter((s) => s.tile[0] === 'w');
+    if (windSets.length === 3 && h.pair[0] === 'w') { sel.flags.smallWinds = true; why('smallWinds', 'Three wind sets and the fourth wind as your pair.', [...windSets.map(setTiles), [h.pair, h.pair]]); }
     if (seat) { sel.flags.seatWind = true; why('seatWind', `${tileName(seatW)} is your seat wind.`, [setTiles(seat)]); }
     if (round) { sel.flags.roundWind = true; why('roundWind', `${tileName(roundW)} is this round's wind.`, [setTiles(round)]); }
   }
@@ -190,7 +207,7 @@ export function analyseHand(h, ctx = {}) {
 
 /** Full simulation: patterns + Tai + plain-language names. */
 export function simulate(h, rules, ctx = {}) {
-  const a = analyseHand(h, ctx);
+  const a = analyseHand(h, ctx, rules);
   const ev = evaluateHand(a.selection, rules, { selfDraw: !!ctx.selfDraw, sameWind: (ctx.seatWind ?? 0) === (ctx.roundWind ?? 0) });
   const items = ev.items.map((i) => ({ ...i, src: a.sources[i.id] || null }));
   const headline = items.filter((i) => ['pattern', 'variant', 'limit', 'colour'].includes(i.input)).map((i) => i.name);

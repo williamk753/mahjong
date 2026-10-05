@@ -2,13 +2,13 @@
 import { blankHand, simulate, setTiles, packHand, handProblems, THIRTEEN, FLOWERS, ANIMALS, WIND_TILES, DRAGON_TILES, SUITS } from './handcalc.js';
 import { tile, tiles, bonusTile } from './tileui.js';
 import { byId } from './hand.js';
-import { winDeltas, BAO_REASONS, MAX_TAI } from './scoring.js';
+import { winDeltas, basePoints, BAO_REASONS, MAX_TAI } from './scoring.js';
 import { zh, unit } from './prefs.js';
 import { ruleSets, ruleSet, DEFAULT_ID } from './rulesets.js';
 import { esc, sign, sheet, WIND_EN, WIND_ZH } from './ui.js';
 
 const MANUAL_LIMITS = ['heavenly', 'earthly', 'human', 'eightFlowers', 'sevenFlowers'];
-const AUTO_LIMITS = ['bigDragons', 'bigWinds', 'allTerminals', 'nineGates'];
+const AUTO_LIMITS = ['bigDragons', 'bigWinds', 'allTerminals', 'nineGates', 'allHonours', 'allKongs', 'fourConcealed', 'pureGreen'];
 const SET_TYPES = { chow: ['Run', '1-2-3 in a row', 'chow 吃'], pong: ['Pong', '3 the same', 'pong 碰'], kong: ['Kong', '4 the same', 'kong 杠'] };
 
 /**
@@ -45,7 +45,18 @@ function createSim(api, opts) {
   const pname = (i) => (calc ? `${WIND_EN[i]} seat` : esc(opts.players[i]));
   const seatWind = () => (calc ? m.winner : opts.seatWindOf(m.winner));
   const ctx = () => ({ seatWind: seatWind(), roundWind: m.roundWind, selfDraw: m.method === 'self' || (m.method === 'bao' && m.baoSelf) });
-  const sim = () => simulate(h, R(), ctx());
+  // 👑 Host's final decision: the host may set the Tai by hand (null = use the calculated Tai).
+  let finalTai = null; let finalNote = '';
+  const sim = () => {
+    const r = simulate(h, R(), ctx()); r.calcTai = r.actual;
+    if (opts.mode === 'host' && finalTai != null) {
+      const min = R().minTai ?? 1; const probs = handProblems(h);
+      r.actual = finalTai; r.base = basePoints(finalTai, r.cap); r.overridden = finalTai !== r.calcTai;
+      r.valid = !probs.length && finalTai >= min;
+      r.errors = probs.length ? probs : finalTai < min ? [`Below the minimum of ${min} Tai — not a valid win.`] : [];
+    }
+    return r;
+  };
   const deltasOf = (res) => {
     if (!res.valid || m.winner == null || !m.method) return null;
     const cap = R().taiCap || MAX_TAI; const other = calc ? (m.winner + 1) % 4 : null;
@@ -175,6 +186,11 @@ function createSim(api, opts) {
       <div class="sumbig ${res.valid ? '' : 'bad'}"><div><small>Total Tai</small><b>${res.actual}${res.actual > res.cap ? `<span class="small"> → ${res.cap}</span>` : ''}</b></div>
         <div><small>Base = 2<sup>${Math.min(res.actual, res.cap)}</sup></small><b>${res.base}</b></div>
         <div><small>${calc ? 'You get' : `${pname(m.winner)} gets`}</small><b class="pos">${d ? sign(d[m.winner]) : '–'}<span class="small"> ${u}</span></b></div></div>
+      ${opts.mode === 'host' ? `<div class="hostdecide"><div class="row-between"><b>👑 Final decision (host)</b>
+          <div class="step"><button type="button" data-ftai="-1" ${res.actual <= 0 ? 'disabled' : ''}>−</button><span>${res.actual}</span><button type="button" data-ftai="1" ${res.actual >= 13 ? 'disabled' : ''}>+</button></div></div>
+        <p class="small muted">${res.overridden ? `Calculated <b>${res.calcTai} Tai</b> → you set <b>${res.actual} Tai</b> (base ${res.base}).` : `The app calculated <b>${res.calcTai} Tai</b>. If the table agrees on a different number, change it here.`}</p>
+        ${res.overridden ? `<label class="field"><span>Reason (shown in the history)</span><input type="text" data-fnote maxlength="80" value="${esc(finalNote)}" placeholder="e.g. table rule: only the highest base hand" /></label>
+          <button type="button" class="linkbtn" data-ftai="reset">↺ Use the calculated ${res.calcTai} Tai</button>` : ''}</div>` : ''}
       ${d ? `<div class="settle">${rows.map((i) => `<div class="row-between"><span>${label(i)}</span><b class="${d[i] > 0 ? 'pos' : d[i] < 0 ? 'neg' : ''}">${sign(d[i])}</b></div>`).join('')}</div>` : ''}`;
   }
 
@@ -213,10 +229,11 @@ function createSim(api, opts) {
     if (d.nav === 'submit') {
       if (calc) { h = blankHand(); m.method = null; b.slot = 0; return go(0); }
       const res = sim(); t.disabled = true;
-      const ok = await opts.onSubmit({ ...m, tai: res.actual, patterns: res.patterns, hand: packHand(h), deltas: deltasOf(res) });
+      const ok = await opts.onSubmit({ ...m, tai: res.actual, taiCalc: res.calcTai, taiNote: res.overridden ? (finalNote || 'Set by host') : null, patterns: res.patterns, hand: packHand(h), deltas: deltasOf(res) });
       if (ok === false) t.disabled = false; return;
     }
     if (d.rs) { rsId = d.rs; return keepScroll(); }
+    if (d.ftai) { const r0 = simulate(h, R(), ctx()).actual; finalTai = d.ftai === 'reset' ? null : Math.max(0, Math.min(13, (finalTai ?? r0) + Number(d.ftai))); if (finalTai === r0) finalTai = null; return keepScroll(); }
     // step 1
     if (d.m) {
       m[d.m] = d.m === 'method' ? d.v : Number(d.v);
@@ -248,9 +265,11 @@ function createSim(api, opts) {
     if (d.bonus) { const list = d.bonus === 'flower' ? h.flowers : h.seasons; const n = Number(d.n); const i = list.indexOf(n); if (i >= 0) list.splice(i, 1); else list.push(n); return keepScroll(); }
     if (d.animal) { const i = h.animals.indexOf(d.animal); if (i >= 0) h.animals.splice(i, 1); else h.animals.push(d.animal); return keepScroll(); }
   });
+  api.el.addEventListener('input', (e) => { if (e.target.matches('[data-fnote]')) finalNote = e.target.value.trim(); });
   api.el.addEventListener('change', (e) => {
     if (e.target.matches('[data-baoself]')) { m.baoSelf = e.target.checked; keepScroll(); }
     if (e.target.matches('[data-baoreason]')) m.baoReason = e.target.value;
+    if (e.target.matches('[data-fnote]')) finalNote = e.target.value.trim();
     if (e.target.dataset.flag) { h[e.target.dataset.flag] = e.target.checked; keepScroll(); }
   });
 }

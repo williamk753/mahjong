@@ -12,6 +12,8 @@ export const DEFAULT_SETTINGS = {
   concealedKong: 4,          // 暗杠
   flowerSet: 4,              // 一堂花: all 4 flowers or all 4 seasons
   flowerPair: 2,             // 正花正季: own-seat flower + season
+  animalPair: 2,             // 猫鼠 / 鸡蜈蚣: matching animal pair
+  animalSet: 4,              // all four animals
   baoMultiplier: 6,          // 包赔: responsible player pays N x base alone
 };
 
@@ -19,7 +21,9 @@ export const INSTANT_KINDS = {
   exposedKong: { label: 'Exposed kong', zh: '明杠 / 碰杠', icon: '🀫', kong: true },
   concealedKong: { label: 'Concealed kong', zh: '暗杠', icon: '🀫', kong: true },
   flowerSet: { label: 'Complete flower / season set', zh: '一堂花', icon: '🌸' },
-  flowerPair: { label: 'Matched flower + season pair', zh: '正花正季', icon: '🌼' },
+  flowerPair: { label: 'Matched flower + season pair', zh: '正花正季', icon: '🌼', fromDeal: true },
+  animalPair: { label: 'Animal pair (cat + mouse or rooster + centipede)', zh: '猫鼠 / 鸡蜈蚣', icon: '🐱', fromDeal: true },
+  animalSet: { label: 'All four animals', zh: '四动物', icon: '🐓' },
 };
 
 export const BAO_REASONS = {
@@ -82,11 +86,11 @@ export function winDeltas({ winner, shooter = null, selfDraw = false, tai, cap =
   return d;
 }
 
-/** Instant payout: every opponent pays settings[kind] to the receiver. */
-export function instantDeltas({ player, kind }, settings = DEFAULT_SETTINGS) {
+/** Instant payout: every opponent pays settings[kind] to the receiver (×2 when held from the deal, for kinds that allow it). */
+export function instantDeltas({ player, kind, fromDeal = false }, settings = DEFAULT_SETTINGS) {
   assertSeat(player, 'player');
   if (!INSTANT_KINDS[kind]) throw new Error('Unknown payout type');
-  const amt = Math.floor(Number({ ...DEFAULT_SETTINGS, ...settings }[kind]));
+  const amt = Math.floor(Number({ ...DEFAULT_SETTINGS, ...settings }[kind])) * (fromDeal && INSTANT_KINDS[kind].fromDeal ? 2 : 1);
   if (!(amt >= 0)) throw new Error('Invalid payout amount');
   const d = zeros();
   for (let i = 0; i < PLAYERS; i++) if (i !== player) { d[i] -= amt; d[player] += amt; }

@@ -5,7 +5,7 @@ import { prefs, rulesDiff, myName } from './prefs.js';
 
 export const DEFAULT_ID = 'default';
 /** Keys that belong to a rule set (the rest — AI scan, score label, ranking reset — are app-wide). */
-export const GAME_KEYS = ['minTai', 'taiCap', 'winCircumstance', 'doubleWind', 'exposedKong', 'concealedKong', 'flowerSet', 'flowerPair',
+export const GAME_KEYS = ['minTai', 'taiCap', 'winCircumstance', 'doubleWind', 'exposedKong', 'concealedKong', 'flowerSet', 'flowerPair', 'animalPair', 'animalSet',
   'baoMultiplier', 'finalWallStacks', 'autoDealer', 'drawRule', 'tai'];
 
 const pick = (r) => Object.fromEntries(GAME_KEYS.map((k) => [k, r[k]]));

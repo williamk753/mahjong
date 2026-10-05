@@ -148,6 +148,9 @@ export function renderGuide($app) {
         <tr><td>Concealed kong ${zh('暗杠')}</td><td>${r.concealedKong}</td><td class="pos">+${r.concealedKong * 3}</td></tr>
         <tr><td>Complete flower or season set ${zh('一堂花')}</td><td>${r.flowerSet}</td><td class="pos">+${r.flowerSet * 3}</td></tr>
         <tr><td>Matched flower + season pair ${zh('正花正季')}</td><td>${r.flowerPair}</td><td class="pos">+${r.flowerPair * 3}</td></tr>
+        <tr><td>Animal pair ${zh('猫鼠 / 鸡蜈蚣')}</td><td>${r.animalPair}</td><td class="pos">+${r.animalPair * 3}</td></tr>
+        <tr><td>All four animals ${zh('四动物')}</td><td>${r.animalSet}</td><td class="pos">+${r.animalSet * 3}</td></tr>
+        <tr><td colspan="3" class="small muted">Flower pair and animal pair pay double if the player held them from the deal (first 13 tiles).</td></tr>
       </table>
       <h3>Pay-all ${zh('包赔')}</h3>
       <p>If a player feeds a dangerous tile, that player pays <b>${r.baoMultiplier} × base</b> to the winner alone and the other two pay nothing. Tick <b>Pay-all</b> in the Win tab.</p>

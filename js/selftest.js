@@ -158,6 +158,19 @@ export const TESTS = [
     eq(r.hand.pair, 'p5'); eq(r.tai, 2);
     ok(bestHand(['m1', 'm2'], R()).problem, 'too few tiles reported');
   }],
+  ['SG extras: Small Four Winds, new limit hands, animal payouts', 'Small Four Winds +2, All Honours / All Kongs / Four Concealed Pongs / Pure Green are limit hands, animal payouts and ×2 from the deal.', () => {
+    const H = (sets, pair, o = {}) => ({ ...blankHand(), sets: sets.map(([type, tile]) => ({ type, tile })), pair, ...o });
+    const sim = (h, ctx = {}) => simulate(h, R(), ctx);
+    ok(sim(H([['pong', 'w1'], ['pong', 'w2'], ['pong', 'w3'], ['chow', 'm1']], 'w4')).selection.flags.smallWinds, 'small four winds');
+    eq(sim(H([['pong', 'w1'], ['pong', 'w2'], ['pong', 'd1'], ['pong', 'd2']], 'd3')).selection.limit, 'allHonours');
+    eq(sim(H([['kong', 'm1'], ['kong', 'p2'], ['kong', 's3'], ['kong', 'm9']], 'p5')).selection.limit, 'allKongs');
+    eq(sim(H([['pong', 'm1'], ['pong', 'p2'], ['pong', 's3'], ['pong', 'm9']], 'p5', { called: false }), { selfDraw: true }).selection.limit, 'fourConcealed');
+    eq(sim(H([['chow', 's2'], ['pong', 's6'], ['pong', 's8'], ['pong', 'd2']], 's4')).selection.limit, 'pureGreen');
+    eq(instantDeltas({ player: 0, kind: 'animalPair' }, R()), [6, -2, -2, -2]);
+    eq(instantDeltas({ player: 0, kind: 'animalPair', fromDeal: true }, R()), [12, -4, -4, -4]);
+    eq(instantDeltas({ player: 0, kind: 'animalSet' }, R()), [12, -4, -4, -4]);
+    eq(instantDeltas({ player: 0, kind: 'exposedKong', fromDeal: true }, R()), [6, -2, -2, -2]); // kongs never double
+  }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);
   }],

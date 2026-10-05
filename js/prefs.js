@@ -31,7 +31,7 @@ export const setMyName = (n) => { try { if (n) localStorage.setItem(ME_KEY, n); 
 /* ---- house rules ---- */
 let lastSaved = JSON.parse(JSON.stringify(prefs.rules));
 const LABELS = { minTai: 'Minimum Tai', taiCap: 'Tai cap', exposedKong: 'Exposed kong payout', concealedKong: 'Concealed kong payout', flowerSet: 'Flower set payout',
-  flowerPair: 'Flower pair payout', baoMultiplier: 'Pay-all multiplier', autoDealer: 'Auto dealer', drawRule: 'Draw round dealer', doubleWind: 'Seat = round wind',
+  flowerPair: 'Flower pair payout', animalPair: 'Animal pair payout', animalSet: 'All-animals payout', baoMultiplier: 'Pay-all multiplier', autoDealer: 'Auto dealer', drawRule: 'Draw round dealer', doubleWind: 'Seat = round wind',
   winCircumstance: 'Win-circumstance Tai', scoreLabel: 'Score label', finalWallStacks: 'Final-wall stacks', aiScan: 'AI hand scan', aiModel: 'AI model' };
 const show = (k, v) => (typeof v === 'boolean' ? (v ? 'on' : 'off') : k === 'taiCap' && v >= 13 ? 'no cap' : String(v));
 

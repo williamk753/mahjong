@@ -499,3 +499,5 @@ body.locked .bottomnav, body.locked .topacts, body.locked #capBadge { display: n
 .lockcard { max-width: 360px; margin: 10vh auto 0; text-align: center; display: grid; gap: 10px; padding: 24px 18px; background: var(--surface); border-radius: 20px; box-shadow: var(--shadow); }
 .lockcard .locktile { font-size: 56px; } .lockcard form { display: grid; gap: 10px; }
 .lockcard input { text-align: center; font-size: 22px; letter-spacing: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+.hostdecide { border: 2px solid var(--gold); background: var(--gold-2); border-radius: 12px; padding: 8px 12px; margin: 10px 0; }
+.hostdecide .step span { min-width: 28px; text-align: center; font-weight: 800; font-size: 18px; }

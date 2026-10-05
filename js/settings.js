@@ -85,7 +85,9 @@ function page(store) {
       ${row(`Exposed kong ${zh('明杠 / 碰杠')}`, `Receiver gets ${r.exposedKong * 3}`, stepper('data-num', 'exposedKong', r.exposedKong))}
       ${row(`Concealed kong ${zh('暗杠')}`, `Receiver gets ${r.concealedKong * 3}`, stepper('data-num', 'concealedKong', r.concealedKong))}
       ${row(`Complete flower / season set ${zh('一堂花')}`, `All 4 flowers or all 4 seasons · receiver gets ${r.flowerSet * 3}`, stepper('data-num', 'flowerSet', r.flowerSet))}
-      ${row(`Matched flower + season pair ${zh('正花正季')}`, `Your seat's flower and season · receiver gets ${r.flowerPair * 3}`, stepper('data-num', 'flowerPair', r.flowerPair))}
+      ${row(`Matched flower + season pair ${zh('正花正季')}`, `Your seat's flower and season · receiver gets ${r.flowerPair * 3} (×2 if held from the deal)`, stepper('data-num', 'flowerPair', r.flowerPair))}
+      ${row(`Animal pair ${zh('猫鼠 / 鸡蜈蚣')}`, `Cat + mouse or rooster + centipede · receiver gets ${r.animalPair * 3} (×2 if held from the deal)`, stepper('data-num', 'animalPair', r.animalPair))}
+      ${row(`All four animals ${zh('四动物')}`, `Receiver gets ${r.animalSet * 3}`, stepper('data-num', 'animalSet', r.animalSet))}
     </section>
 
     <section class="card">

@@ -13,7 +13,7 @@ import { createPicker } from './picker.js';
 import { app, remember, setCurrentGame, invalidate } from './data.js';
 import { esc, cls, sign, toast, sheet, closeSheet, confirmBox, copyText, WIND_EN, WIND_ZH, FLOWER, avatar } from './ui.js';
 
-const v = { room: null, events: [], members: [], requests: [], unsubs: [], showHelp: false, qr: null, reqLoaded: false, memLoaded: false };
+const v = { adj: {}, room: null, events: [], members: [], requests: [], unsubs: [], showHelp: false, qr: null, reqLoaded: false, memLoaded: false };
 const ADJUST_REASONS = [
   ['falseHu', 'Penalty: False Hu (炸胡)'], ['foul', 'Penalty: Foul play / illegal meld'], ['reset', 'Reset all scores to starting points (积分归零)'],
   ['tableFee', 'Table fee settlement (水钱)'], ['chipCount', 'Chip count correction'], ['other', 'Other (write below)'],
@@ -68,9 +68,10 @@ function describe(ev) {
       const how = ev.baoBy != null ? `pay-all by ${p(ev.baoBy)}${ev.baoReason && BAO_REASONS[ev.baoReason] ? ` · ${esc(BAO_REASONS[ev.baoReason].label.toLowerCase())}` : ''}`
         : ev.selfDraw ? `self-draw ${zh('自摸')}` : `off ${p(ev.shooter)}'s discard`;
       const pat = (ev.hand ? handMini(ev.hand) : '') + (ev.patterns?.length ? `<div class="small muted">${esc(patternText(ev.patterns, false))}</div>` : '');
-      return `🀄 ${p(ev.winner)} won · ${ev.tai} Tai${ev.tai > (ev.cap || cap()) ? ` → ${ev.cap || cap()}` : ''} (base ${basePoints(ev.tai, ev.cap || MAX_TAI)}) · ${how}${pat}${ev.remarks ? `<div class="small muted">“${esc(ev.remarks)}”</div>` : ''}`;
+      const hostSet = ev.taiCalc != null ? `<div class="small">👑 Host set ${ev.tai} Tai (calculated ${ev.taiCalc})${ev.taiNote ? ` · “${esc(ev.taiNote)}”` : ''}</div>` : '';
+      return `🀄 ${p(ev.winner)} won · ${ev.tai} Tai${ev.tai > (ev.cap || cap()) ? ` → ${ev.cap || cap()}` : ''} (base ${basePoints(ev.tai, ev.cap || MAX_TAI)}) · ${how}${hostSet}${pat}${ev.remarks ? `<div class="small muted">“${esc(ev.remarks)}”</div>` : ''}`;
     }
-    case 'instant': { const k = INSTANT_KINDS[ev.kind] || { label: ev.kind, icon: '⚡' }; return `${k.icon} ${p(ev.player)} · ${esc(k.label)} ${zh(k.zh)}${ev.notes ? `<div class="small muted">${esc(ev.notes)}</div>` : ''}`; }
+    case 'instant': { const k = INSTANT_KINDS[ev.kind] || { label: ev.kind, icon: '⚡' }; return `${k.icon} ${p(ev.player)} · ${esc(k.label)} ${zh(k.zh)}${ev.fromDeal ? ' · from the deal ×2' : ''}${ev.notes ? `<div class="small muted">${esc(ev.notes)}</div>` : ''}`; }
     case 'kong': return `🀫 ${p(ev.player)} · ${esc(ev.kind)} kong (old entry)`;
     case 'bonus': return `🐓 ${p(ev.player)} · bonus ${ev.units} (old entry)`;
     case 'adjust': return `⚖️ Manual adjustment${ev.reason ? ` · ${esc(ev.reasonText || ev.reason)}` : ''}${ev.note ? `<div class="small muted">${esc(ev.note)}</div>` : ''}`;
@@ -175,6 +176,7 @@ async function onClick(e, $app) {
   const b = e.target.closest('button'); if (!b || !v.room) return;
   const act = b.dataset.act;
   if (b.dataset.seatme !== undefined) return pickSeat(Number(b.dataset.seatme));
+  if (b.dataset.adj) { const q = v.requests.find((x) => x.id === b.dataset.adj); if (q) { v.adj[q.id] = Math.max(0, Math.min(13, (v.adj[q.id] ?? q.tai) + Number(b.dataset.d))); render($app); } return; }
   if (b.dataset.approve) return approve(v.requests.find((q) => q.id === b.dataset.approve));
   if (b.dataset.reject) return reject(v.requests.find((q) => q.id === b.dataset.reject));
   if (b.dataset.cancelreq) { await app.store.updateRequest(v.room.code, b.dataset.cancelreq, { status: 'cancelled' }); return toast('Request cancelled'); }
@@ -355,15 +357,17 @@ function restoreState(p, res) {
 
 /* ---------- Instant payout ---------- */
 function instantSheet() {
-  const s = S(); const f = { player: null, kind: 'exposedKong', notes: '' };
+  const s = S(); const f = { player: null, kind: 'exposedKong', notes: '', fromDeal: false };
+  const amt = () => (s[f.kind] ?? DEFAULT_SETTINGS[f.kind]) * (f.fromDeal && INSTANT_KINDS[f.kind].fromDeal ? 2 : 1);
   const body = () => `
     <div class="mstep"><div class="mstep-h">Select receiver ${zh('收取筹码者')}</div>${seatPicker('p', f.player)}</div>
     <div class="mstep"><div class="mstep-h">Payout category ${zh('项目类别')}</div>
       <div class="ilist">${Object.entries(INSTANT_KINDS).map(([k, x]) => { const n = s[k] ?? DEFAULT_SETTINGS[k]; return `
         <button type="button" data-k="${k}" class="${f.kind === k ? 'on' : ''}"><span>${x.icon} <b>${esc(x.label)}</b> ${zh(x.zh)}<br><small>Each of the 3 opponents pays ${n}. Receiver gains ${n * 3}.</small></span><small class="amt">+${n * 3}</small></button>`; }).join('')}</div></div>
-    ${f.player != null ? preview(instantDeltas({ player: f.player, kind: f.kind }, s)) : ''}
+    ${INSTANT_KINDS[f.kind].fromDeal ? `<label class="check"><input type="checkbox" data-fromdeal ${f.fromDeal ? 'checked' : ''}/> Held from the deal (first 13 tiles) — pays double</label>` : ''}
+    ${f.player != null ? preview(instantDeltas({ player: f.player, kind: f.kind, fromDeal: f.fromDeal }, s)) : ''}
     <label class="field"><span>Notes (optional)</span><input type="text" data-notes maxlength="100" value="${esc(f.notes)}" /></label>`;
-  const foot = () => { const n = s[f.kind] ?? DEFAULT_SETTINGS[f.kind]; return `<button class="btn primary block big" data-ok ${f.player == null ? 'disabled' : ''}>✓ Confirm payout (+${n * 3} ${u()})</button>`; };
+  const foot = () => `<button class="btn primary block big" data-ok ${f.player == null ? 'disabled' : ''}>✓ Confirm payout (+${amt() * 3} ${u()})</button>`;
   sheet({
     title: `⚡ Immediate payout ${zh('即时 / 杠花')}`, sub: 'Independent transaction · paid right away', body: body(), footer: foot(),
     onMount(api) {
@@ -371,11 +375,12 @@ function instantSheet() {
         const b = e.target.closest('button'); if (!b) return;
         if (b.dataset.p !== undefined) f.player = Number(b.dataset.p);
         else if (b.dataset.k) f.kind = b.dataset.k;
-        else if (b.dataset.ok !== undefined) { const ev = { type: 'instant', player: f.player, kind: f.kind, notes: f.notes.trim() || null, deltas: instantDeltas({ player: f.player, kind: f.kind }, s) }; return save(ev, 'Payout recorded'); }
+        else if (b.dataset.ok !== undefined) { const fd = f.fromDeal && !!INSTANT_KINDS[f.kind].fromDeal; const ev = { type: 'instant', player: f.player, kind: f.kind, fromDeal: fd, notes: f.notes.trim() || null, deltas: instantDeltas({ player: f.player, kind: f.kind, fromDeal: fd }, s) }; return save(ev, 'Payout recorded'); }
         else return;
         api.setBody(body()); api.setFoot(foot());
       });
       api.el.addEventListener('input', (e) => { if (e.target.matches('[data-notes]')) f.notes = e.target.value; });
+      api.el.addEventListener('change', (e) => { if (e.target.matches('[data-fromdeal]')) { f.fromDeal = e.target.checked; api.setBody(body()); api.setFoot(foot()); } });
     },
   });
 }
@@ -476,7 +481,7 @@ function roomChanged(old, n) {
 }
 
 function requestText(q) {
-  if (q.type === 'instant') { const k = INSTANT_KINDS[q.kind] || { label: q.kind, icon: '⚡' }; return `${k.icon} ${esc(v.room.players[q.player] ?? q.byName)} · ${esc(k.label)}`; }
+  if (q.type === 'instant') { const k = INSTANT_KINDS[q.kind] || { label: q.kind, icon: '⚡' }; return `${k.icon} ${esc(v.room.players[q.player] ?? q.byName)} · ${esc(k.label)}${q.fromDeal ? ' · from the deal ×2' : ''}`; }
   const how = q.method === 'self' ? 'self-draw' : q.method === 'discard' ? `off ${esc(v.room.players[q.shooter] ?? '?')}'s discard` : `pay-all by ${esc(v.room.players[q.baoBy] ?? '?')}`;
   return `🀄 <b>${esc(v.room.players[q.winner] ?? q.byName)}</b> won · <b>${q.tai} Tai</b> · ${how}${handMini(q.hand)}${q.patterns?.length ? `<div class="small muted">${esc(patternText(q.patterns, false))}</div>` : ''}`;
 }
@@ -507,10 +512,13 @@ function pendingCard() {
   const pend = v.requests.filter((q) => q.status === 'pending');
   if (!pend.length) return '';
   return `<section class="card reqcard"><h2>🙋 Requests waiting for you (${pend.length})</h2>
-    ${pend.map((q) => { let prev = ''; try { prev = preview(q.type === 'win' ? winEventFrom(q).deltas : instantDeltas({ player: q.player, kind: q.kind }, S())); } catch (e) { prev = `<p class="small neg">${esc(e.message)}</p>`; }
+    ${pend.map((q0) => { const q = adjusted(q0); let prev = ''; try { prev = preview(q.type === 'win' ? winEventFrom(q).deltas : instantDeltas({ player: q.player, kind: q.kind, fromDeal: !!q.fromDeal }, S())); } catch (e) { prev = `<p class="small neg">${esc(e.message)}</p>`; }
       const low = q.type === 'win' && q.tai < (S().minTai ?? 1);
       return `<div class="reqitem"><div class="small muted">From ${esc(q.byName || 'a player')} · ${new Date(q.createdAt).toLocaleTimeString([], { timeStyle: 'short' })}</div>
-        <div>${requestText(q)}</div>${low ? `<p class="small neg">Below the minimum of ${S().minTai} Tai.</p>` : ''}${prev}
+        <div>${requestText(q0)}</div>
+        ${q.type === 'win' ? `<div class="hostdecide"><div class="row-between"><b>👑 Final Tai</b><div class="step"><button type="button" data-adj="${esc(q0.id)}" data-d="-1" ${q.tai <= 0 ? 'disabled' : ''}>−</button><span>${q.tai}</span><button type="button" data-adj="${esc(q0.id)}" data-d="1" ${q.tai >= 13 ? 'disabled' : ''}>+</button></div></div>
+          <p class="small muted">${q.tai !== q0.tai ? `Player sent ${q0.tai} Tai → you set ${q.tai} Tai (base ${basePoints(q.tai, cap())}).` : 'Change it if the table agrees on a different number.'}</p></div>` : ''}
+        ${low ? `<p class="small neg">Below the minimum of ${S().minTai} Tai.</p>` : ''}${prev}
         <div class="reqbtns"><button class="btn danger" data-reject="${esc(q.id)}">✕ Reject</button><button class="btn primary" data-approve="${esc(q.id)}" ${low ? 'disabled' : ''}>✓ Approve</button></div></div>`; }).join('')}</section>`;
 }
 
@@ -641,6 +649,7 @@ function winEventFrom(m) {
   const s = S();
   const ev = { type: 'win', winner: m.winner, tai: m.tai, cap: cap(), patterns: m.patterns || [], remarks: m.remarks || null };
   if (m.hand) ev.hand = m.hand;
+  if (m.taiCalc != null && m.taiCalc !== m.tai) { ev.taiCalc = m.taiCalc; ev.taiNote = m.taiNote || 'Set by host'; }
   if (m.method === 'self') Object.assign(ev, { selfDraw: true, shooter: null });
   else if (m.method === 'discard') { if (m.shooter == null) throw new Error('Missing discarder'); Object.assign(ev, { selfDraw: false, shooter: m.shooter }); }
   else { if (m.baoBy == null) throw new Error('Missing responsible player'); Object.assign(ev, { selfDraw: !!m.baoSelf, shooter: m.baoSelf ? null : m.baoBy, baoBy: m.baoBy, baoReason: m.baoReason || 'thirdDragon', baoMultiplier: s.baoMultiplier }); }
@@ -678,23 +687,27 @@ function playerInstant() {
   const s = S();
   sheet({
     title: '⚡ Ask for an instant payout', sub: 'Paid right away when the host approves',
-    body: `<div class="ilist">${Object.entries(INSTANT_KINDS).map(([k, x]) => { const n = s[k] ?? DEFAULT_SETTINGS[k]; return `
-      <button type="button" data-k="${k}"><span>${x.icon} <b>${esc(x.label)}</b> ${zh(x.zh)}<br><small>Each of the 3 others pays you ${n}.</small></span><small class="amt">+${n * 3}</small></button>`; }).join('')}</div>`,
+    body: `<label class="check"><input type="checkbox" data-fromdeal /> I had it from the deal (first 13 tiles) — flower / animal pair pays double</label>
+      <div class="ilist">${Object.entries(INSTANT_KINDS).map(([k, x]) => { const n = s[k] ?? DEFAULT_SETTINGS[k]; return `
+      <button type="button" data-k="${k}"><span>${x.icon} <b>${esc(x.label)}</b> ${zh(x.zh)}<br><small>Each of the 3 others pays you ${n}${x.fromDeal ? ' (×2 from the deal)' : ''}.</small></span><small class="amt">+${n * 3}</small></button>`; }).join('')}</div>`,
     onMount(api) {
       api.el.addEventListener('click', async (e) => {
         const b = e.target.closest('[data-k]'); if (!b) return;
         b.disabled = true;
-        try { await app.store.addRequest(v.room.code, { type: 'instant', byName: v.room.players[seat], player: seat, kind: b.dataset.k }); closeSheet(); toast('📨 Sent to the host'); }
+        const fd = !!api.el.querySelector('[data-fromdeal]')?.checked && !!INSTANT_KINDS[b.dataset.k].fromDeal;
+        try { await app.store.addRequest(v.room.code, { type: 'instant', byName: v.room.players[seat], player: seat, kind: b.dataset.k, fromDeal: fd }); closeSheet(); toast('📨 Sent to the host'); }
         catch (err) { b.disabled = false; toast('Could not send: ' + (err.code || err.message)); }
       });
     },
   });
 }
 
-async function approve(q) {
-  if (!q || q.status !== 'pending') return;
+const adjusted = (q) => (q.type === 'win' && v.adj[q.id] != null && v.adj[q.id] !== q.tai ? { ...q, tai: v.adj[q.id], taiCalc: q.taiCalc ?? q.tai, taiNote: 'Adjusted by host when approving' } : q);
+async function approve(q0) {
+  if (!q0 || q0.status !== 'pending') return;
+  const q = adjusted(q0);
   try {
-    const ev = q.type === 'win' ? winEventFrom(q) : { type: 'instant', player: q.player, kind: q.kind, notes: null, deltas: instantDeltas({ player: q.player, kind: q.kind }, S()) };
+    const ev = q.type === 'win' ? winEventFrom(q) : { type: 'instant', player: q.player, kind: q.kind, fromDeal: !!q.fromDeal, notes: null, deltas: instantDeltas({ player: q.player, kind: q.kind, fromDeal: !!q.fromDeal }, S()) };
     ev.requestId = q.id; ev.requestedBy = q.byName || null;
     const id = await app.store.addEvent(v.room.code, ev);
     await app.store.updateRequest(v.room.code, q.id, { status: 'approved', eventId: id || null });

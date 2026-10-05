@@ -26,6 +26,7 @@ export const TAI_CATALOG = [
   { id: 'dragonPung', cat: 'sets', input: 'count', max: 3, name: 'Dragon Pong / Kong', zh: '红中 / 发财 / 白板 刻', def: 1, desc: 'Each pong or kong of red 中, green 發 or white 白 dragons.' },
   { id: 'seatWind', cat: 'sets', input: 'flag', name: 'Seat Wind Pong / Kong', zh: '门风刻 (本命风)', def: 1, desc: 'Pong or kong of your own seat wind.' },
   { id: 'roundWind', cat: 'sets', input: 'flag', name: 'Prevailing Wind Pong / Kong', zh: '圈风刻 (场风)', def: 1, desc: 'Pong or kong of the round (prevailing) wind.' },
+  { id: 'smallWinds', cat: 'sets', input: 'flag', name: 'Small Four Winds', zh: '小四喜', def: 2, desc: 'Pongs/kongs of three winds plus the fourth wind as your pair. Added on top of any seat/round wind pong.' },
   { id: 'smallDragons', cat: 'sets', input: 'flag', name: 'Small Three Dragons', zh: '小三元', def: 1, desc: 'Two dragon pongs + a dragon pair. Added on top of the dragon pongs.' },
 
   { id: 'flower', cat: 'bonus', input: 'flag', name: 'Matched Seat Flower', zh: '正花 (本命花)', def: 1, desc: 'Your seat’s flower: 1 East 梅, 2 South 兰, 3 West 菊, 4 North 竹.' },
@@ -46,6 +47,10 @@ export const TAI_CATALOG = [
     ['eightFlowers', 'Eight Flowers', '八仙过海', 12, 'All eight bonus tiles — wins immediately, no sets needed.'],
     ['bigWinds', 'Big Four Winds', '大四喜', 12, 'Pong or kong of all four winds plus a pair.'],
     ['nineGates', 'Nine Gates', '九莲宝灯', 10, 'Concealed 1112345678999 of one suit, waiting on any tile of that suit.'],
+    ['allHonours', 'All Honours', '字一色', 5, 'Only winds and dragons — no number tiles at all.'],
+    ['allKongs', 'All Kongs', '十八罗汉', 5, 'Four kongs plus a pair (18 tiles).'],
+    ['fourConcealed', 'Four Concealed Pongs', '四暗刻', 5, 'Four pongs/kongs all from the wall, won by self-draw.'],
+    ['pureGreen', 'Pure Green', '绿一色', 5, 'Only green tiles: bamboo 2, 3, 4, 6, 8 and green dragon 發.'],
     ['heavenly', 'Heavenly Hand', '天胡', 5, 'Dealer wins on the initial 14-tile deal.'],
     ['earthly', 'Earthly Hand', '地胡', 5, 'Non-dealer wins on the dealer’s very first discard.'],
     ['human', 'Human Hand', '人胡', 5, 'Non-dealer self-draws on their very first draw before any meld is claimed.'],
@@ -68,6 +73,8 @@ export const HOUSE_DEFAULTS = {
   concealedKong: DEFAULT_SETTINGS.concealedKong,
   flowerSet: DEFAULT_SETTINGS.flowerSet,
   flowerPair: DEFAULT_SETTINGS.flowerPair,
+  animalPair: DEFAULT_SETTINGS.animalPair,
+  animalSet: DEFAULT_SETTINGS.animalSet,
   baoMultiplier: DEFAULT_SETTINGS.baoMultiplier,   // pay-all: responsible pays N x base
   tai: {},                      // overrides: { [catalogId]: number }
 };
@@ -85,7 +92,7 @@ export function mergeRules(saved = {}) {
   r.minTai = int(r.minTai, 1, 0, 5);
   r.taiCap = int(r.taiCap, MAX_TAI, 1, 13);
   if (r.minTai > r.taiCap) r.minTai = r.taiCap;
-  for (const k of ['exposedKong', 'concealedKong', 'flowerSet', 'flowerPair']) r[k] = int(r[k], HOUSE_DEFAULTS[k], 0, 99);
+  for (const k of ['exposedKong', 'concealedKong', 'flowerSet', 'flowerPair', 'animalPair', 'animalSet']) r[k] = int(r[k], HOUSE_DEFAULTS[k], 0, 99);
   r.baoMultiplier = int(r.baoMultiplier, HOUSE_DEFAULTS.baoMultiplier, 1, 12);
   r.finalWallStacks = int(r.finalWallStacks, HOUSE_DEFAULTS.finalWallStacks, 0, 40);
   r.leaderboardResetAt = Math.max(0, Math.floor(Number(r.leaderboardResetAt) || 0));
@@ -115,8 +122,8 @@ export function taiValue(rules, id) {
 
 /** Settings snapshot stored on a table when it is created / updated. */
 export function tableSettings(rules) {
-  const { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks } = rules;
-  return { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks, tai: { ...(rules.tai || {}) } };
+  const { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, animalPair, animalSet, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks } = rules;
+  return { minTai, taiCap, exposedKong, concealedKong, flowerSet, flowerPair, animalPair, animalSet, baoMultiplier, autoDealer, drawRule, scoreLabel, winCircumstance, doubleWind, finalWallStacks, tai: { ...(rules.tai || {}) } };
 }
 
 export const WIND_NAMES = ['East', 'South', 'West', 'North'];
