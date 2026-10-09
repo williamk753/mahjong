@@ -13,14 +13,17 @@ export const CATEGORIES = {
 export const TAI_CATALOG = [
   { id: 'chicken', cat: 'base', input: 'pattern', name: 'Chicken Hand', zh: '鸡糊', def: 0, desc: 'No scoring pattern of any kind. Not a valid win when minimum Tai is 1 or more.' },
   { id: 'allChow', cat: 'base', input: 'pattern', name: 'All Chow', zh: '吃吃胡 (顺子胡)', def: 1, desc: 'Every set is a chow. The pair may be any tile except dragons or scoring winds. Flowers allowed.' },
-  { id: 'pingHu', cat: 'base', input: 'pattern', name: 'Ping Hu (Zero Flowers)', zh: '平胡 (无花)', def: 4, desc: 'Pure Ping Hu: 4 chows + neutral pair + two-sided wait, with zero flowers/animals. With flowers it scores as All Chow + flowers.' },
+  { id: 'pingHu', cat: 'base', input: 'pattern', name: 'Ping Hu (Zero Flowers)', zh: '平胡 (无花)', def: 4, desc: 'Same as All Chow with no bonus tiles at all (no flowers, seasons or animals). With any bonus tile it scores as All Chow + bonuses.' },
   { id: 'allPong', cat: 'base', input: 'pattern', name: 'All Pong', zh: '对对胡 (碰碰胡)', def: 2, desc: 'Every set is a pong or kong, plus one pair.' },
-  { id: 'sevenPairs', cat: 'base', input: 'pattern', name: 'Seven Pairs', zh: '七对子', def: 2, desc: 'Seven pairs, won off a discard. Stacks with half / full colour.' },
-  { id: 'sevenPairsSelf', cat: 'base', input: 'variant', name: 'Seven Pairs — self-draw', zh: '七对子 自摸', def: 7, desc: 'Seven pairs won by self-draw (effective Tai is still limited by the cap).' },
+  { id: 'sevenPairs', cat: 'base', input: 'pattern', name: 'Seven Pairs', zh: '七对子', def: 2, desc: 'Seven pairs, won off a discard (2 Tai; 4 Tai when self-drawn). Stacks with half / full colour.' },
+  { id: 'sevenPairsSelf', cat: 'base', input: 'variant', name: 'Seven Pairs — self-draw', zh: '七对子 自摸', def: 4, desc: 'Seven pairs won by self-draw.' },
   { id: 'halfColour', cat: 'base', input: 'colour', name: 'Half Color (Hun Yi Se)', zh: '混一色', def: 2, desc: 'One numbered suit together with honour tiles (winds and/or dragons).' },
   { id: 'fullColour', cat: 'base', input: 'colour', name: 'Full Color (Qing Yi Se)', zh: '清一色', def: 4, desc: 'One numbered suit only. No honours.' },
-  { id: 'halfTerminals', cat: 'base', input: 'pattern', name: 'Half Terminals', zh: '混么九', def: 4, desc: 'Only terminal number tiles (1 and 9) and honour tiles.' },
-  { id: 'concealed', cat: 'sets', input: 'flag', name: 'Concealed Hand', zh: '门清', def: 1, desc: 'Won with no exposed melds (no claimed chow, pong or exposed kong).' },
+  { id: 'halfTerminals', cat: 'base', input: 'pattern', name: 'Half Terminals', zh: '混么九', def: 4, desc: 'Only terminal number tiles (1 and 9) and honour tiles. No middle (2-8) tiles.' },
+  { id: 'mixedOrphans', cat: 'base', input: 'pattern', name: 'Mixed Orphans', zh: '混全带幺', def: 2, desc: 'Every set and the pair has a terminal (1 or 9) or is an honour (winds / dragons). Runs must be 1-2-3 or 7-8-9.' },
+  { id: 'pureOrphans', cat: 'base', input: 'pattern', name: 'Pure Orphans', zh: '纯全带幺', def: 4, desc: 'Every set and the pair has a terminal (1 or 9), with no honours. Runs must be 1-2-3 or 7-8-9.' },
+  { id: 'pureStraight', cat: 'sets', input: 'flag', name: 'Pure Straight', zh: '一条龙', def: 2, desc: 'Three chows 1-2-3, 4-5-6 and 7-8-9 of the same suit. Added on top of the other Tai.' },
+  { id: 'concealed', cat: 'sets', input: 'flag', name: 'Concealed Hand', zh: '门清', def: 1, desc: 'Hand stays completely concealed until the win: no claimed chow, pong or exposed kong.' },
   { id: 'kong', cat: 'sets', input: 'count', max: 4, name: 'Kong / Gang (4 of a kind)', zh: '杠牌 (明杠/暗杠)', def: 1, desc: 'Each exposed or concealed kong in the winning hand.' },
 
   { id: 'dragonPung', cat: 'sets', input: 'count', max: 3, name: 'Dragon Pong / Kong', zh: '红中 / 发财 / 白板 刻', def: 1, desc: 'Each pong or kong of red 中, green 發 or white 白 dragons.' },
@@ -53,14 +56,14 @@ export const TAI_CATALOG = [
     ['pureGreen', 'Pure Green', '绿一色', 5, 'Only green tiles: bamboo 2, 3, 4, 6, 8 and green dragon 發.'],
     ['heavenly', 'Heavenly Hand', '天胡', 5, 'Dealer wins on the initial 14-tile deal.'],
     ['earthly', 'Earthly Hand', '地胡', 5, 'Non-dealer wins on the dealer’s very first discard.'],
-    ['human', 'Human Hand', '人胡', 5, 'Non-dealer self-draws on their very first draw before any meld is claimed.'],
+    ['human', 'Human Hand', '人胡', 5, 'Early-game win before the player’s first normal draw.'],
   ].map(([id, name, zh, def, desc]) => ({ id, cat: 'limit', input: 'limit', name, zh, desc, def })),
 ];
 
 export const HOUSE_DEFAULTS = {
   minTai: 1,
   taiCap: MAX_TAI,
-  winCircumstance: false,       // +1 Tai special wins (off by default)
+  winCircumstance: true,        // +1 Tai special wins: kong replacement, last tile, robbing the kong
   doubleWind: '2x',             // seat wind = prevailing wind: count twice (2x, SG standard) or once (1x)
   scoreLabel: 'pts',
   finalWallStacks: 12,           // pay-all fresh-tile window (stacks left in the wall)

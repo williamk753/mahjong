@@ -106,9 +106,9 @@ export function renderGuide($app) {
     <section class="card rulecard">
       <h2>Single primary hand rule ${zh('单一番种')}</h2>
       <ul class="steps small">
-        <li>Pick <b>one base hand</b> (All Chow, Ping Hu, All Pong, Seven Pairs, Half Terminals…) <b>or one fixed / limit hand</b> — never both, and never two base hands.</li>
+        <li>Pick <b>one base hand</b> (All Chow, Ping Hu, All Pong, Seven Pairs, Half Terminals, Mixed / Pure Orphans…) <b>or one fixed / limit hand</b> — never both, and never two base hands.</li>
         <li>Half / Full Color stack with a base hand (including Seven Pairs), not with a limit hand.</li>
-        <li><b>Additive bonuses</b> — flowers, seasons, animals, dragons, seat / round wind, concealed hand, kong — combo with anything.</li>
+        <li><b>Additive bonuses</b> — flowers, seasons, animals, dragons, seat / round wind, pure straight, concealed hand, kong — combo with anything.</li>
       </ul>
       <a class="btn sm" href="#/tiles">🀄 Open the tile picture guide</a>
     </section>

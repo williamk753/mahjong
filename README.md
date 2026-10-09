@@ -9,7 +9,7 @@ Live, shared score tracker for a 4-player Singapore mahjong table — free to ho
 | 🏠 Home | Start new game, score calculator, all-time #1, monthly MVP, games in progress, recent games |
 | ▶️ Game | New game from the player directory (4 seats, starting score, scorekeeper, location, notes); resume or join by code |
 | 🀄 Game table | Game number, dealer 庄 with 连庄 streak, seat winds & seat flowers, score / diff / wins, zero-sum balance check |
-| Record win | Winner → self-draw / discard / pay-all (包赔, with trigger) → patterns via **Quick 3-step**, **Limit**, **Catalog** or **Tai only**; single-primary-hand rule, Seven Pairs 2/7 Tai, min-Tai rejection, live actual/effective Tai & base point, settlement preview, remarks |
+| Record win | Winner → self-draw / discard / pay-all (包赔, with trigger) → patterns via **Quick 3-step**, **Limit**, **Catalog** or **Tai only**; single-primary-hand rule, Seven Pairs 2/4 Tai (discard/self-draw), Mixed & Pure Orphans, Pure Straight, min-Tai rejection, live actual/effective Tai & base point, settlement preview, remarks |
 | Instant payout | Exposed kong 2 each, concealed kong 4 each, flower/season set 4 each, matched flower+season 2 each (no bites) |
 | Other actions | Draw round, manual adjust (±10/5/2, zero-sum, reason required), undo last, audit log with void / restore / **edit past round**, reset points, finish game, end / quit |
 | 🏁 Recap | Champion, rounds, duration, standings with self-draw / discard / pay-all counts, what each player won with, all rounds, highest hand; share via WhatsApp, Teams format, copy text, CSV |
@@ -25,7 +25,7 @@ Live, shared score tracker for a 4-player Singapore mahjong table — free to ho
 Scoring: base = 2^min(Tai, cap). Discard win → discarder 2×, others 1×. Self-draw → all pay 2×. Pay-all → responsible player pays 6× alone. Every entry is 4 integer deltas that must sum to 0 (checked in the app **and** by `firestore.rules`); entries are voided, never deleted.
 
 ## 🧪 Winning hand simulator & rule sets
-- **Simulator (Score tab, Record Win, 🙋 I won!, 🧪 Simulate in a game):** 1 · win details → 2 · kind of hand (normal / seven pairs / thirteen wonders / premium) → 3 · build the tiles (4 groups + 1 pair, 3 taps each; flowers & animals; ⭐ mark the winning tile) → 4 · result: the winning pattern, the hand, every Tai with the tiles that earn it, base points and who pays. Nothing is saved unless the host records it.
+- **Simulator (Score tab, Record Win, 🙋 I won!, 🧪 Simulate in a game):** 1 · win details → 2 · kind of hand (normal / seven pairs / thirteen wonders / premium) → 3 · build the tiles (4 groups + 1 pair, 3 taps each; flowers & animals) → 4 · result: the winning pattern, the hand, every Tai with the tiles that earn it, base points and who pays. Nothing is saved unless the host records it.
 - **Rule sets:** ⚙️ Rule sets → ⭐ Default plus your own sets (＋ New rule set copies the one you are viewing). Pick a set when you create a game — the game keeps a copy of those rules. Everyone is notified when a set changes.
 
 ## One host per game · join screen · requests · notifications

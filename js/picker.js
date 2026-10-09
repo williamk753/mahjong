@@ -10,12 +10,14 @@ import { app } from './data.js';
 const app_mode = () => app.store?.mode || 'demo';
 
 const ICON = {
-  allChow: '🀁', pingHu: '⭐', allPong: '🀄', sevenPairs: '🀆', halfTerminals: '🀇', chicken: '🐔',
+  allChow: '🀁', pingHu: '⭐', allPong: '🀄', sevenPairs: '🀆', halfTerminals: '🀇', mixedOrphans: '🀈', pureOrphans: '🀉', chicken: '🐔',
   halfColour: '🀜', fullColour: '🀝', flower: '🌸', season: '🌺', flowerSet: '💐', animal: '🐱', animalPair: '🐱🐭',
-  dragonPung: '🀄', seatWind: '🀀', roundWind: '🀁', concealed: '🀫', kong: '🀡', smallDragons: '🐉',
+  dragonPung: '🀄', seatWind: '🀀', roundWind: '🀁', concealed: '🀫', kong: '🀡', smallDragons: '🐉', pureStraight: '🐲',
   kongWin: '🌼', lastTile: '🌊', robKong: '🫳',
 };
-const QUICK_BONUS = ['flower', 'season', 'animal', 'animalPair', 'dragonPung', 'seatWind', 'roundWind', 'concealed', 'kong', 'flowerSet', 'smallDragons', 'kongWin', 'lastTile', 'robKong'];
+const QUICK_BONUS = ['flower', 'season', 'animal', 'animalPair', 'dragonPung', 'seatWind', 'roundWind', 'concealed', 'kong', 'flowerSet', 'smallDragons', 'pureStraight', 'kongWin', 'lastTile', 'robKong'];
+
+const SHAPES = ['allPong', 'sevenPairs', 'halfTerminals', 'mixedOrphans', 'pureOrphans']; // one-tap hand shapes in Quick mode
 
 export function createPicker(root, { rules, context = () => ({}), onChange = () => {}, allowTaiMode = true } = {}) {
   const st = { mode: 'quick', sel: emptySelection(), chowKind: 'allChow', directTai: null, scan: { status: 'idle' } };
@@ -68,7 +70,7 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
   function quick() {
     const s = st.sel;
     const isChow = s.base === 'allChow' || s.base === 'pingHu';
-    const shape = isChow ? 'chow' : s.base === 'allPong' ? 'allPong' : s.base === 'sevenPairs' ? 'sevenPairs' : s.base === 'halfTerminals' ? 'halfTerminals' : s.base ? 'other' : 'mixed';
+    const shape = isChow ? 'chow' : SHAPES.includes(s.base) ? s.base : s.base ? 'other' : 'mixed';
     return `
       <div class="pstep"><div class="pstep-h"><span class="num">1</span> Hand shape <small class="muted">pick one</small></div>
         <div class="pgrid">
@@ -76,6 +78,8 @@ export function createPicker(root, { rules, context = () => ({}), onChange = () 
           ${card('allPong', 'data-shape="allPong"', shape === 'allPong', 'All 4 sets are pongs / kongs')}
           ${card('sevenPairs', 'data-shape="sevenPairs"', shape === 'sevenPairs', ctx().selfDraw ? 'Self-draw value' : `7 pairs · ${tai('sevenPairsSelf')} Tai if self-drawn`)}
           ${card('halfTerminals', 'data-shape="halfTerminals"', shape === 'halfTerminals', 'Only 1s, 9s and honours')}
+          ${card('mixedOrphans', 'data-shape="mixedOrphans"', shape === 'mixedOrphans', 'Every set and the pair has a 1, 9 or honour')}
+          ${card('pureOrphans', 'data-shape="pureOrphans"', shape === 'pureOrphans', 'Every set and the pair has a 1 or 9 — no honours')}
           <button type="button" class="pcard ${shape === 'mixed' && !s.limit ? 'on' : ''}" data-shape="mixed"><span class="pt-ic">🀙</span><span class="pc-txt"><b>Mixed</b><small>Chows & pongs mixed — scores from bonuses</small></span><span class="pc-tai">0 Tai</span></button>
         </div>
         ${isChow ? `<div class="subq"><div class="small muted">Which kind of All Chow?</div><div class="pgrid two">

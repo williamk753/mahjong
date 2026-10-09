@@ -39,10 +39,10 @@ export const TESTS = [
     const h = evaluateHand(sel({ base: 'sevenPairs' }), R(), { selfDraw: false });
     eq(h.actual, 2); eq(winDeltas({ winner: 0, shooter: 1, tai: h.actual }), [16, -8, -4, -4]);
   }],
-  ['Seven Pairs by self-draw', 'Seven Pairs self-drawn = 7 Tai (effective 5), opponents pay 64 each.', () => {
+  ['Seven Pairs by self-draw', 'Seven Pairs self-drawn = 4 Tai (max 4), base 16, opponents pay 32 each.', () => {
     const h = evaluateHand(sel({ base: 'sevenPairs' }), R(), { selfDraw: true });
-    eq([h.actual, h.effective, h.base], [7, 5, 32]);
-    eq(winDeltas({ winner: 0, selfDraw: true, tai: h.actual }), [192, -64, -64, -64]);
+    eq([h.actual, h.effective, h.base], [4, 4, 16]);
+    eq(winDeltas({ winner: 0, selfDraw: true, tai: h.actual }), [96, -32, -32, -32]);
   }],
   ['Exposed kong instant payout', 'Opponents pay 2 each, receiver +6, sum 0.', () => {
     const d = instantDeltas({ player: 0, kind: 'exposedKong' }, R()); eq(d, [6, -2, -2, -2]); eq(sum(d), 0);
@@ -131,15 +131,17 @@ export const TESTS = [
   ['Winning-hand simulator: tiles → patterns', 'Built hands are recognised (Ping Hu, All Pong, dragons, winds, flowers, Seven Pairs, limits) and illegal hands rejected.', () => {
     const H = (sets, pair, o = {}) => ({ ...blankHand(), sets: sets.map(([type, tile, open]) => ({ type, tile, open: !!open })), pair, ...o });
     const sim = (h, ctx = {}) => simulate(h, R(), ctx);
-    // 4 runs + plain pair + 2-sided wait, no flowers -> Ping Hu 4 + concealed 1
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, called: false })).actual, 5);
+    // 4 runs + plain pair, no flowers -> Ping Hu 4 + concealed 1 (no wait rule)
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { called: false })).actual, 5);
     // same with own seat flower -> All Chow 1 + concealed 1 + flower 1
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, flowers: [1], called: false }), { seatWind: 0 }).actual, 3);
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { flowers: [1], called: false }), { seatWind: 0 }).actual, 3);
     // not answered / called -> no Concealed bonus
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 } })).actual, 4);
-    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { winTile: { slot: 1, i: 0 }, called: true })).actual, 4);
-    // edge wait (7-8-9 won on the 7) is not Ping Hu
-    eq(sim(H([['chow', 'm7'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm1']], 'p9', { winTile: { slot: 0, i: 0 } })).selection.base, 'allChow');
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9')).actual, 4);
+    eq(sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm5']], 'p9', { called: true })).actual, 4);
+    // an edge wait (7-8-9 won on the 7) is still Ping Hu: the rule is just All Chow with no bonus tiles
+    eq(sim(H([['chow', 'm7'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm2']], 'p9')).selection.base, 'pingHu');
+    // a dragon pair spoils All Chow / Ping Hu
+    eq(sim(H([['chow', 'm7'], ['chow', 'p4'], ['chow', 's6'], ['chow', 'm2']], 'd1')).selection.base, null);
     // all pong (one called) + 2 dragon pongs + dragon pair -> 2 + 2 + small dragons 1
     const r = sim(H([['pong', 'd1', true], ['pong', 'd2'], ['pong', 'p3'], ['pong', 'm8']], 'd3'));
     eq(r.actual, 5); ok(r.headline.includes('All Pong'), 'All Pong named');
@@ -147,15 +149,15 @@ export const TESTS = [
     eq(sim(H([['pong', 'w1', true], ['chow', 's1'], ['chow', 's4'], ['pong', 's9', true]], 's5'), { seatWind: 0, roundWind: 1 }).selection.suit, 'halfColour');
     // three dragon sets -> Big Three Dragons
     eq(sim(H([['pong', 'd1'], ['pong', 'd2'], ['kong', 'd3'], ['chow', 'm1']], 'p2')).selection.limit, 'bigDragons');
-    // seven pairs self-draw, one suit = 7 + 4
-    eq(sim({ ...blankHand(), kind: 'sevenPairs', pairs: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'] }, { selfDraw: true }).actual, 11);
+    // seven pairs self-draw, one suit = 4 + 4
+    eq(sim({ ...blankHand(), kind: 'sevenPairs', pairs: ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7'] }, { selfDraw: true }).actual, 8);
     // a tile used more than 4 times is rejected
     ok(!sim(H([['pong', 'm1'], ['pong', 'm1'], ['chow', 'p1'], ['chow', 'p4']], 's2')).valid, 'too many tiles rejected');
   }],
   ['Tile detector: names → tiles → hand', 'Model class names are understood and 14 detected tiles are grouped into the best 4 sets + 1 pair.', () => {
     eq(['1m', '0p', '7z', '1z', 'f6', 'bamboo_3', 'xx'].map((n) => mapClass(n)), ['m1', 'p5', 'd1', 'w1', 'S2', 's3', null]);
     const r = bestHand(['s1', 's2', 's3', 's4', 's5', 's6', 's7', 's8', 's9', 'd1', 'd1', 'd1', 'p5', 'p5', 'F1'], R(), { seatWind: 0 });
-    eq(r.hand.pair, 'p5'); eq(r.tai, 2);
+    eq(r.hand.pair, 'p5'); eq(r.tai, 4); // 1-9 in bamboo = Pure Straight 2, red dragon pong 1, seat flower 1
     ok(bestHand(['m1', 'm2'], R()).problem, 'too few tiles reported');
   }],
   ['SG extras: Small Four Winds, new limit hands, animal payouts', 'Small Four Winds +2, All Honours / All Kongs / Four Concealed Pongs / Pure Green are limit hands, animal payouts and ×2 from the deal.', () => {
@@ -170,6 +172,28 @@ export const TESTS = [
     eq(instantDeltas({ player: 0, kind: 'animalPair', fromDeal: true }, R()), [12, -4, -4, -4]);
     eq(instantDeltas({ player: 0, kind: 'animalSet' }, R()), [12, -4, -4, -4]);
     eq(instantDeltas({ player: 0, kind: 'exposedKong', fromDeal: true }, R()), [6, -2, -2, -2]); // kongs never double
+  }],
+  ['Mixed / Pure Orphans & Pure Straight', 'Mixed Orphans 2, Pure Orphans 4 (best base hand wins), Pure Straight +2 needs 1-2-3 / 4-5-6 / 7-8-9 of one suit.', () => {
+    const H = (sets, pair, o = {}) => ({ ...blankHand(), sets: sets.map(([type, tile]) => ({ type, tile })), pair, ...o });
+    const sim = (h, ctx = {}) => simulate(h, R(), ctx);
+    // 123m 789m red dragon, 999p, East pair -> every group has a 1, 9 or honour: Mixed Orphans 2 + dragon 1
+    const mixed = sim(H([['chow', 'm1'], ['chow', 'm7'], ['pong', 'd1'], ['pong', 'p9']], 'w1'));
+    eq([mixed.selection.base, mixed.actual], ['mixedOrphans', 3]);
+    // no honours at all -> Pure Orphans 4
+    const pure = sim(H([['chow', 'm1'], ['chow', 'm7'], ['chow', 'p7'], ['pong', 's9']], 'p1'));
+    eq([pure.selection.base, pure.actual], ['pureOrphans', 4]);
+    // 4 runs that all touch a 1 or 9: Ping Hu ties on 4 (listed first); with a flower Pure Orphans (4) beats All Chow (1)
+    eq(sim(H([['chow', 'm1'], ['chow', 'm7'], ['chow', 'p1'], ['chow', 'p7']], 's9')).selection.base, 'pingHu');
+    const flower = sim(H([['chow', 'm1'], ['chow', 'm7'], ['chow', 'p1'], ['chow', 'p7']], 's9', { flowers: [1] }), { seatWind: 0 });
+    eq([flower.selection.base, flower.actual], ['pureOrphans', 5]);
+    // a middle run (4-5-6) breaks it
+    eq(sim(H([['chow', 'm1'], ['chow', 'm4'], ['pong', 'd1'], ['pong', 'p9']], 'w1')).selection.base, null);
+    // all 1s / 9s / honours in pongs: Half Terminals 4 still beats All Pong 2 and Mixed Orphans 2
+    eq(sim(H([['pong', 'm1'], ['pong', 'm9'], ['pong', 'p1'], ['pong', 'd2']], 'w2')).selection.base, 'halfTerminals');
+    // Pure Straight: 123 + 456 + 789 of one suit, +2 on top of everything else
+    const ps = sim(H([['chow', 'm1'], ['chow', 'm4'], ['chow', 'm7'], ['pong', 'p5']], 's2', { called: false }));
+    ok(ps.selection.flags.pureStraight, 'pure straight found'); eq(ps.actual, 3);   // straight 2 + concealed 1 (mixed suits, so no colour bonus)
+    ok(!sim(H([['chow', 'm1'], ['chow', 'p4'], ['chow', 's7'], ['pong', 'p5']], 's2')).selection.flags.pureStraight, 'different suits are not a straight');
   }],
   ['House rule defaults', 'Defaults match the Singapore / SEA reference.', () => {
     eq([HOUSE_DEFAULTS.minTai, HOUSE_DEFAULTS.taiCap, HOUSE_DEFAULTS.baoMultiplier], [1, 5, 6]);

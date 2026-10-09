@@ -104,13 +104,12 @@ function createSim(api, opts) {
   }
 
   /* ---------- step 3: tile builder ---------- */
-  const isWin = (slot, i) => h.winTile && h.winTile.slot === slot && h.winTile.i === i;
   const complete = () => !handProblems(h).length;
   function slotRow(slot, label, list, extra = '') {
     const active = b.slot === slot;
     return `<div class="slot ${active ? 'on' : ''} ${list.length ? 'filled' : ''}" data-slot="${slot}">
       <span class="slab">${label}</span>
-      <span class="stiles">${list.length ? list.map((t, i) => tile(t, { attrs: `data-wt="${slot}:${i}"`, star: isWin(slot, i) })).join('') : '<span class="ph">tap to fill</span>'}</span>${extra}</div>`;
+      <span class="stiles">${list.length ? list.map((t) => tile(t)).join('') : '<span class="ph">tap to fill</span>'}</span>${extra}</div>`;
   }
   function choices(kind) {
     // kind: 'chow' | 'pong' | 'kong' | 'pair'
@@ -134,8 +133,7 @@ function createSim(api, opts) {
       html += `<div class="picker2"><div class="small muted">${b.slot === 'pair' ? 'Pick the tile of your <b>pair</b> (2 the same)' : `Fill <b>Group ${b.slot + 1}</b>${cur ? ' (tap again to change)' : ''}`}</div>
         ${b.slot === 'pair' ? '' : `<div class="seg types">${Object.entries(SET_TYPES).map(([k, [n, d, z]]) => `<button data-type="${k}" class="${b.type === k ? 'on' : ''}"><b>${n}</b><small>${d}</small></button>`).join('')}</div>`}
         ${suitTabs(kind === 'chow')}${choices(kind)}</div>`;
-      if (complete()) html += `<p class="hint">⭐ Tap the tile you <b>won with</b> (your last tile) — needed to check Ping Hu.</p>
-        <p class="q">Did you call chow / pong / kong on someone's discard before winning?</p>
+      if (complete()) html += `<p class="q">Did you call chow / pong / kong on someone's discard before winning?</p>
         <div class="qopts two"><button data-called="true" class="${h.called === true ? 'on' : ''}">🔓 Yes, I called<small>Most hands</small></button>
           <button data-called="false" class="${h.called === false ? 'on' : ''}">🔒 No, all from the wall<small>+ Concealed Hand</small></button></div>`;
     } else if (h.kind === 'sevenPairs') {
@@ -162,7 +160,7 @@ function createSim(api, opts) {
 
   /* ---------- step 4: result ---------- */
   function handView() {
-    if (h.kind === 'normal') return `<div class="handline">${h.sets.map((s, i) => `<span class="grp">${setTiles(s).map((t, j) => tile(t, { star: isWin(i, j) })).join('')}</span>`).join('')}<span class="grp">${tile(h.pair, { star: isWin('pair', 0) })}${tile(h.pair, { star: isWin('pair', 1) })}</span></div>`;
+    if (h.kind === 'normal') return `<div class="handline">${h.sets.map((s) => `<span class="grp">${setTiles(s).map((t) => tile(t)).join('')}</span>`).join('')}<span class="grp">${tile(h.pair)}${tile(h.pair)}</span></div>`;
     if (h.kind === 'sevenPairs') return `<div class="handline">${h.pairs.map((t) => `<span class="grp">${tile(t)}${tile(t)}</span>`).join('')}</div>`;
     if (h.kind === 'thirteen') return `<div class="handline">${tiles([...THIRTEEN, h.thirteenDouble].sort())}</div>`;
     return '';
@@ -220,8 +218,7 @@ function createSim(api, opts) {
 
   render();
   api.el.addEventListener('click', async (e) => {
-    let t = e.target.closest('button, [data-slot], [data-wt]'); if (!t || !api.el.contains(t)) return;
-    if (t.dataset.wt !== undefined && !(complete() && h.kind === 'normal')) t = t.closest('[data-slot]') || t;
+    const t = e.target.closest('button, [data-slot]'); if (!t || !api.el.contains(t)) return;
     const d = { ...t.dataset };
     if (d.nav === 'back') return go(step - 1);
     if (d.nav === 'next') return go(step + 1);
@@ -242,14 +239,10 @@ function createSim(api, opts) {
       return keepScroll();
     }
     // step 2
-    if (d.kind) { h.kind = d.kind; h.limit = null; h.winTile = null; b.slot = 0; b.suit = 'm'; return go(2); }
+    if (d.kind) { h.kind = d.kind; h.limit = null; b.slot = 0; b.suit = 'm'; return go(2); }
     if (d.showlimits !== undefined) { showLimits = !showLimits; return keepScroll(); }
     if (d.limit) { h.kind = 'limit'; h.limit = d.limit; return go(2); }
     // step 3
-    if (d.wt !== undefined && complete() && h.kind === 'normal') {
-      const [slot, i] = d.wt.split(':'); const s = slot === 'pair' ? 'pair' : Number(slot);
-      h.winTile = isWin(s, Number(i)) ? null : { slot: s, i: Number(i) }; return keepScroll();
-    }
     if (d.called !== undefined) { h.called = d.called === 'true'; return keepScroll(); }
     if (d.slot !== undefined) { b.slot = d.slot === 'pair' ? 'pair' : Number(d.slot); const s = h.sets[b.slot]; if (s) { b.type = s.type; b.suit = s.tile[0]; } return keepScroll(); }
     if (d.type) { b.type = d.type; if (d.type === 'chow' && (b.suit === 'w' || b.suit === 'd')) b.suit = 'm'; return keepScroll(); }
@@ -258,7 +251,6 @@ function createSim(api, opts) {
       if (h.kind === 'sevenPairs') { h.pairs[b.slot] = d.pick; nextEmpty(); return keepScroll(); }
       if (b.slot === 'pair') h.pair = d.pick;
       else h.sets[b.slot] = { type: b.type, tile: d.pick, open: h.sets[b.slot]?.open || false };
-      if (h.winTile && (h.winTile.slot === b.slot)) h.winTile = null;
       nextEmpty(); return keepScroll();
     }
     if (d.double) { h.thirteenDouble = d.double; return keepScroll(); }

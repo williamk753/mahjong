@@ -15,14 +15,14 @@ t('defaults and validation', () => {
   assert.equal(taiValue(r, 'fullColour'), 4);
   assert.equal(taiValue(r, 'bigDragons'), 2);
 });
-t('friend-app defaults', () => {
+t('house defaults (Mahjong Scoring ver1.2)', () => {
   const r = mergeRules({});
   assert.deepEqual([r.minTai, r.taiCap, r.winCircumstance, r.doubleWind, r.scoreLabel, r.autoDealer, r.drawRule, r.finalWallStacks],
-    [1, 5, false, '2x', 'pts', true, 'stay', 12]);
+    [1, 5, true, '2x', 'pts', true, 'stay', 12]);
   assert.deepEqual([r.exposedKong, r.concealedKong, r.flowerSet, r.flowerPair, r.baoMultiplier], [2, 4, 4, 2, 6]);
   const tv = (id) => taiValue(r, id);
-  assert.deepEqual(['chicken', 'allChow', 'allPong', 'halfColour', 'halfTerminals', 'pingHu', 'fullColour', 'smallDragons', 'sevenPairs', 'sevenPairsSelf'].map(tv), [0, 1, 2, 2, 4, 4, 4, 1, 2, 7]);
-  assert.deepEqual(['dragonPung', 'seatWind', 'roundWind', 'flower', 'season', 'flowerSet', 'concealed', 'animal', 'animalPair', 'kong'].map(tv), [1, 1, 1, 1, 1, 1, 1, 1, 2, 1]);
+  assert.deepEqual(['chicken', 'allChow', 'allPong', 'halfColour', 'halfTerminals', 'pingHu', 'fullColour', 'smallDragons', 'sevenPairs', 'sevenPairsSelf', 'mixedOrphans', 'pureOrphans'].map(tv), [0, 1, 2, 2, 4, 4, 4, 1, 2, 4, 2, 4]);
+  assert.deepEqual(['dragonPung', 'seatWind', 'roundWind', 'flower', 'season', 'flowerSet', 'concealed', 'animal', 'animalPair', 'kong', 'pureStraight', 'kongWin', 'lastTile', 'robKong'].map(tv), [1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1]);
   assert.deepEqual(['bigDragons', 'thirteen', 'allTerminals', 'sevenFlowers', 'eightFlowers', 'bigWinds', 'nineGates', 'heavenly', 'earthly', 'human'].map(tv), [7, 8, 9, 10, 12, 12, 10, 5, 5, 5]);
 });
 t('table snapshot has scoring fields', () => {

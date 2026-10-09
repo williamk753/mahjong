@@ -46,7 +46,6 @@ export const blankHand = () => ({
   pairs: [null, null, null, null, null, null, null], // seven pairs
   thirteenDouble: null,           // which of the 13 is doubled
   limit: null,                    // manual premium hand id
-  winTile: null,                  // { slot: 0-3 | 'pair' | 0-6 (pairs), i } — the last tile
   flowers: [], seasons: [], animals: [],
   kongWin: false, lastTile: false, robKong: false,
 });
@@ -76,7 +75,9 @@ export function handProblems(h) {
   return out;
 }
 
-const chowWaitTwoSided = (set, i) => { const n = numOf(set.tile); return (i === 0 && n <= 6) || (i === 2 && n >= 2); };
+const isOutside = (t) => isTerminal(t) || isHonour(t);
+/** Does this set touch a 1, a 9 or an honour? Runs: only 1-2-3 and 7-8-9 do. */
+const setOutside = (s) => (s.type === 'chow' ? numOf(s.tile) === 1 || numOf(s.tile) === 7 : isOutside(s.tile));
 
 /**
  * Detect scoring patterns.
@@ -136,26 +137,26 @@ export function analyseHand(h, ctx = {}, rules = {}) {
   else if (!sel.limit && bonusCount === 7 && ctx.selfDraw) { sel.limit = 'sevenFlowers'; sel.base = null; why('sevenFlowers', '7 of the 8 flower & season tiles, self-drawn.'); }
   if (sel.limit) sel.base = null;
 
-  // Base hand + colour (normal hands only, no limit hand)
+  // Base hand + colour (normal hands only, no limit hand). Every base hand the tiles qualify for is a candidate;
+  // the one worth the most Tai (under these rules) counts — ties keep the first listed.
   if (h.kind === 'normal' && !problems.length && !sel.limit) {
     const chows = sets.filter((s) => s.type === 'chow');
+    const cands = [];
     if (chows.length === 4) {
       const pairScores = h.pair[0] === 'd' || h.pair === seatW || h.pair === roundW;
       if (pairScores) notes.push(`Your pair (${tileName(h.pair)}) is a dragon or your wind, so the runs don't count as All Chow.`);
-      else {
-        const wt = h.winTile;
-        const twoSided = wt && Number.isInteger(wt.slot) && h.sets[wt.slot]?.type === 'chow' && chowWaitTwoSided(h.sets[wt.slot], wt.i);
-        if (!hasBonus && twoSided) { sel.base = 'pingHu'; why('pingHu', 'Four runs, a plain pair, won on a 2-sided wait and no flowers/animals.', [...groups, [h.pair, h.pair]]); }
-        else {
-          sel.base = 'allChow'; why('allChow', 'All four groups are runs (1-2-3).', groups);
-          if (!hasBonus && !wt) notes.push('Tap ⭐ the tile you won with — a 2-sided wait could make this Ping Hu.');
-          else if (!hasBonus && !twoSided) notes.push('Not Ping Hu: you won on a 1-sided wait (edge, middle or pair).');
-          else if (hasBonus) notes.push('Not Ping Hu because you have flowers/animals.');
-        }
-      }
-    } else if (pongs.length === 4) { sel.base = 'allPong'; why('allPong', 'All four groups are 3 (or 4) of a kind.', pongs.map(setTiles)); }
-    if (tiles.every((t) => isTerminal(t) || isHonour(t)) && tiles.some(isHonour)) {
-      if (!sel.base || sel.base === 'allPong') { if (sel.base) notes.push('Half Terminals is worth more than All Pong here.'); sel.base = 'halfTerminals'; why('halfTerminals', 'Only 1s, 9s, winds and dragons.', [tiles]); }
+      else if (hasBonus) { cands.push(['allChow', 'All four groups are runs (1-2-3).', groups]); notes.push('Not Ping Hu because you have flowers/animals.'); }
+      else cands.push(['pingHu', 'Four runs, a plain pair and no flowers/animals.', [...groups, [h.pair, h.pair]]]);
+    } else if (pongs.length === 4) cands.push(['allPong', 'All four groups are 3 (or 4) of a kind.', pongs.map(setTiles)]);
+    if (tiles.every((t) => isTerminal(t) || isHonour(t)) && tiles.some(isHonour)) cands.push(['halfTerminals', 'Only 1s, 9s, winds and dragons.', [tiles]]);
+    if (sets.every(setOutside) && isOutside(h.pair)) {
+      if (tiles.some(isHonour)) cands.push(['mixedOrphans', 'Every group and the pair has a 1, a 9 or an honour tile.', [...groups, [h.pair, h.pair]]]);
+      else cands.push(['pureOrphans', 'Every group and the pair has a 1 or a 9, no honours.', [...groups, [h.pair, h.pair]]]);
+    }
+    if (cands.length) {
+      const [id, text, g] = cands.reduce((a, b) => (taiValue(rules, b[0]) > taiValue(rules, a[0]) ? b : a));
+      sel.base = id; why(id, text, g);
+      if (cands.length > 1) notes.push(`Also qualifies for ${cands.filter((c) => c[0] !== id).map((c) => byId[c[0]]?.name || c[0]).join(', ')} — only the highest base hand counts.`);
     }
   }
   if ((h.kind === 'normal' || h.kind === 'sevenPairs') && !problems.length && !sel.limit) {
@@ -179,6 +180,8 @@ export function analyseHand(h, ctx = {}, rules = {}) {
     if (round) { sel.flags.roundWind = true; why('roundWind', `${tileName(roundW)} is this round's wind.`, [setTiles(round)]); }
   }
   if (h.kind === 'normal' && !problems.length) {
+    const straight = ['m', 'p', 's'].map((su) => [1, 4, 7].map((n) => sets.find((x) => x.type === 'chow' && x.tile === `${su}${n}`))).find((run) => run.every(Boolean));
+    if (straight) { sel.flags.pureStraight = true; why('pureStraight', 'Runs 1-2-3, 4-5-6 and 7-8-9 of the same suit.', straight.map(setTiles)); }
     const kongs = sets.filter((s) => s.type === 'kong');
     if (kongs.length) { sel.counts.kong = kongs.length; why('kong', `${kongs.length} kong${kongs.length > 1 ? 's' : ''} (4 of a kind).`, kongs.map(setTiles)); }
     if (h.called === false) { sel.flags.concealed = true; why('concealed', 'You never called chow/pong/kong on a discard (all groups from the wall).'); }
@@ -223,7 +226,6 @@ export function packHand(h) {
   if (h.kind === 'sevenPairs') o.pairs = [...h.pairs];
   if (h.kind === 'thirteen') o.thirteenDouble = h.thirteenDouble;
   if (h.kind === 'limit') o.limit = h.limit;
-  if (h.winTile) o.winTile = h.winTile;
   o.flowers = [...h.flowers]; o.seasons = [...h.seasons]; o.animals = [...h.animals];
   return o;
 }
