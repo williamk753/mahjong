@@ -1,9 +1,9 @@
 // Start a new game: pick 4 seats from the player directory, table settings, launch.
 import { prefs, zh, myName, setMyName } from './prefs.js';
 import { ruleSets, ruleSet, settingsFor, DEFAULT_ID } from './rulesets.js';
-import { app, getRoster, invalidateRoster, setCurrentGame, invalidate, recent } from './data.js';
+import { app, getAll, getRoster, invalidateRoster, setCurrentGame, invalidate, recent } from './data.js';
 import { esc, toast, sheet, closeSheet, fmtDate, WIND_EN, WIND_ZH } from './ui.js';
-import { loadContinuation, resumeText, seatsFor, samePlayers, latestRoomWith, resumeForSeats, CLOSED } from './continue.js';
+import { loadContinuation, resumeText, seatsFor, sameFour, playsIn, roomsWith, resumeForSeats, idleText } from './continue.js';
 import { gameNumber } from './recap-core.js';
 
 export async function renderNewGame($app, fromCode = '') {
@@ -15,6 +15,7 @@ export async function renderNewGame($app, fromCode = '') {
   let from = null; let tip = null; let tipHidden = false;
   if (fromCode) {
     try { from = await loadContinuation(app.store, { code: fromCode }); } catch (err) { console.error(err); }
+    if (from && from.state === 'open') { toast('That game is still in progress'); location.hash = `#/t/${from.room.code}`; return; }
     if (from) {
       const r = from.room;
       Object.assign(f, { seats: seatsFor(r, roster), start: Number(r.startingScore) || 0, location: r.location || '', name: r.name || '', rs: r.settings?.ruleSetId || DEFAULT_ID });
@@ -26,19 +27,19 @@ export async function renderNewGame($app, fromCode = '') {
   const seatNames = () => f.seats.map((id) => roster.find((p) => p.id === id)?.name || '');
   const keyOf = (names) => (names.every(Boolean) ? names.map((n) => n.toLowerCase()).sort().join('|') : '');
   // The wind table only carries over to exactly the same four players (the dealer moves with their seat).
-  const resumeNow = () => (from && f.resume ? resumeForSeats(from.resume, from.room.players, seatNames()) : null);
+  const sel = () => ({ ids: f.seats, names: seatNames() });   // who is seated now: directory ids (a renamed player is still the same) and names
+  const resumeNow = () => (from && f.resume ? resumeForSeats(from.resume, from.room, sel()) : null);
 
-  // Recommendation: the newest earlier game of exactly the four chosen players, if it is closed.
+  // Recommendation: the latest game these exact four players actually played (finished, left unfinished, or still in progress).
   let rooms = null; let match = null; let matchKey = '';
   const refreshMatch = async () => {
     if (from) return;
-    const names = seatNames(); const key = keyOf(names);
+    const s = sel(); const key = keyOf(s.names);
     if (!key || key === matchKey) return;
     matchKey = key; match = null;
     try {
-      rooms ??= await app.store.listRooms();
-      const r = latestRoomWith(rooms, names);
-      match = r && CLOSED.includes(r.status) ? await loadContinuation(app.store, { code: r.code }) : null;
+      rooms ??= app.store.listRooms ? await app.store.listRooms() : (await getAll()).rooms;
+      match = await loadContinuation(app.store, { rooms: roomsWith(rooms, s) });
     } catch (err) { console.error(err); }
     if (key === keyOf(seatNames()) && location.hash.startsWith('#/new')) draw();
   };
@@ -46,25 +47,32 @@ export async function renderNewGame($app, fromCode = '') {
   const contBox = () => {
     const names = seatNames();
     if (from) {
-      const r = from.room; const same = samePlayers(names, r.players);
-      const missing = r.players.filter((n) => !roster.some((p) => p.name.toLowerCase() === n.toLowerCase()));
+      const r = from.room; const same = sameFour(r, sel());
+      const missing = seatsFor(r, roster).map((id, i) => (id ? null : r.players[i])).filter(Boolean);
       return `<section class="card contcard"><div class="row-between"><h2>↩ Continuing ${esc(gameNumber(r))}</h2><a class="small" href="#/new">Start fresh instead</a></div>
         <p class="small">Same 4 players: <b>${r.players.map(esc).join(' · ')}</b>${r.location ? ` · ${esc(r.location)}` : ''}</p>
+        ${from.state === 'unfinished' ? `<p class="small muted">That game was never finished (quiet for ${idleText(from.idleMs)}). It stays open; this starts a new game from where it stopped.</p>` : ''}
         ${missing.length ? `<p class="small neg">${missing.map(esc).join(', ')} ${missing.length > 1 ? 'are' : 'is'} not in your player list — add them with ＋ Add player to continue with the same four.</p>`
           : !same ? '<p class="small neg">⚠ The players are not the same four any more.</p>' : ''}
-        ${from.resume ? (same ? `<label class="check"><input type="checkbox" data-resume ${f.resume ? 'checked' : ''}/> Continue the wind table: <b>${esc(resumeText(resumeForSeats(from.resume, r.players, names), names))}</b></label>`
+        ${from.resume ? (same ? `<label class="check"><input type="checkbox" data-resume ${f.resume ? 'checked' : ''}/> Continue the wind table: <b>${esc(resumeText(resumeForSeats(from.resume, r, sel()), names))}</b></label>`
             : '<p class="small muted">The wind table only continues with the same 4 players, so it will start again at East.</p>')
           : '<p class="small muted">That game did not track the dealer, so the table starts again at East.</p>'}</section>`;
     }
     const four = names.every(Boolean);
     let shown = null;
-    if (four) shown = matchKey === keyOf(names) ? match : (tip && samePlayers(names, tip.room.players) ? tip : null);
-    else if (tip && names.filter(Boolean).every((n) => tip.room.players.some((p) => p.toLowerCase() === n.toLowerCase()))) shown = tip;
+    if (four) shown = matchKey === keyOf(names) ? match : (tip && sameFour(tip.room, sel()) ? tip : null);
+    else if (tip && f.seats.every((id, i) => !id || playsIn(tip.room, id, names[i]))) shown = tip;
     if (!shown || tipHidden) return '';
     const r = shown.room;
-    return `<section class="card contcard"><h2>💡 ${four ? 'These 4 played together before' : 'Continue your last table?'}</h2>
-      <p class="small"><b>${esc(gameNumber(r))}</b> · ${fmtDate(r.createdAt)} · ${r.players.map(esc).join(' · ')}</p>
-      <p class="small muted">${shown.resume ? `It stopped in the <b>${esc(resumeText(shown.resume, r.players))}</b>. Continue it so the wind table carries on.` : 'Same players and seats, ready to go.'}</p>
+    const who = `<p class="small"><b>${esc(gameNumber(r))}</b> · ${fmtDate(r.createdAt)} · ${r.players.map(esc).join(' · ')}</p>`;
+    if (shown.state === 'open') {   // still being played: keep scoring it rather than starting another
+      return `<section class="card contcard"><h2>🟢 ${four ? 'These 4 have a game in progress' : 'Your last game is still in progress'}</h2>${who}
+        <p class="small muted">Open it to keep scoring. Start a new game only if you really want a separate one.</p>
+        <div class="row-gap"><a class="btn primary" href="#/t/${esc(r.code)}">▶ Open this game</a><button type="button" class="btn" data-hidetip>No, start a new one</button></div></section>`;
+    }
+    return `<section class="card contcard"><h2>💡 ${four ? 'These 4 played together before' : 'Continue your last table?'}</h2>${who}
+      <p class="small muted">${shown.resume ? `It stopped in the <b>${esc(resumeText(shown.resume, r.players))}</b>${shown.state === 'unfinished' ? ` — it was never finished (quiet for ${idleText(shown.idleMs)})` : ''}. Continue it so the wind table carries on.`
+        : `Same players and seats, ready to go.${shown.state === 'unfinished' ? ` It was never finished (quiet for ${idleText(shown.idleMs)}).` : ''}`}</p>
       <div class="row-gap"><a class="btn primary" href="#/new/${esc(r.code)}">↩ Continue this table</a><button type="button" class="btn" data-hidetip>No, start fresh</button></div></section>`;
   };
 
@@ -146,7 +154,7 @@ export async function renderNewGame($app, fromCode = '') {
           startingScore: Math.trunc(Number(f.start) || 0), scorekeeper: f.keeper.trim(), location: f.location.trim(), notes: f.notes.trim(),
           settings: { ...settingsFor(f.rs), ...(resumeNow() ? { resume: resumeNow() } : {}) },
           status: f.lobby ? 'lobby' : 'active', hostName: f.keeper.trim() || 'Host', hasPin: !!pin,
-          ...(from && samePlayers(seatNames(), from.room.players) ? { continuesFrom: from.room.code } : {}),
+          ...(from && sameFour(from.room, sel()) ? { continuesFrom: from.room.code } : {}),
         });
         if (f.keeper.trim()) setMyName(f.keeper.trim());
         if (pin) { try { await app.store.setHostPin(code, pin); } catch (err) { console.error(err); toast('PIN not saved: ' + (err.code || err.message)); } }

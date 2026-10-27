@@ -8,7 +8,7 @@ import { parseScan, buildScanPrompt } from './scan-core.js';
 import { blankHand, simulate, handProblems } from './handcalc.js';
 import { mapClass, bestHand } from './detect-core.js';
 import { SAMPLES, sampleHand, sampleCtx } from './samples.js';
-import { tableResume, resumeText, seatsFor, samePlayers, latestRoomWith, resumeForSeats } from './continue.js';
+import { tableResume, resumeText, seatsFor, samePlayers, sameFour, roomsWith, resumeForSeats, idleText } from './continue.js';
 
 const eq = (a, b, msg) => {
   const A = JSON.stringify(a), B = JSON.stringify(b);
@@ -144,12 +144,20 @@ export const TESTS = [
     ok(samePlayers(four, ['di', 'Cy', ' ann', 'Bo']), 'same four in any order / case');
     ok(!samePlayers(four, ['Ann', 'Bo', 'Cy', 'Ed']), 'one different player');
     ok(!samePlayers(four, ['Ann', 'Bo', 'Cy', '']) && !samePlayers(four, ['Ann', 'Bo', 'Cy']), 'incomplete table');
-    eq(latestRoomWith([room({ createdAt: 1 }), room({ code: 'B', createdAt: 5, status: 'active' }), room({ code: 'C', createdAt: 9, players: ['Ann', 'Bo', 'Cy', 'Ed'] })], four).code, 'B');
-    eq(latestRoomWith([room({ players: ['Ann', 'Bo', 'Cy', 'Ed'] })], four), null);
-    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, four, four), { dealer: 2, round: 1, streak: 1 });
-    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, four, ['Cy', 'Ann', 'Bo', 'Di']).dealer, 0);   // Cy deals and now sits East
-    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, four, ['Ann', 'Bo', 'Cy', 'Ed']), null);        // a different player: wind table starts again
-    eq(resumeForSeats(null, four, four), null);
+    const ids = ['p1', 'p2', 'p3', 'p4'];
+    eq(roomsWith([room({ createdAt: 1 }), room({ code: 'B', createdAt: 5, status: 'active' }), room({ code: 'C', createdAt: 9, players: ['Ann', 'Bo', 'Cy', 'Ed'], playerIds: ['p1', 'p2', 'p3', 'p5'] })], { ids, names: four }).map((r) => r.code), ['B', 'A']); // newest first, any status
+    eq(roomsWith([room({ players: ['Ann', 'Bo', 'Cy', 'Ed'], playerIds: ['p1', 'p2', 'p3', 'p5'] })], { ids, names: four }), []);
+    ok(sameFour(room(), { ids, names: ['Annie', 'Bo', 'Cy', 'Di'] }), 'a renamed player is still the same (directory id)');
+    ok(sameFour(room({ playerIds: undefined }), { ids, names: ['di', 'Cy', 'ann', 'Bo'] }), 'older game without ids: matched by name');
+    ok(sameFour(room(), { ids: ['n1', 'n2', 'n3', 'n4'], names: ['Ann', 'Bo', 'Cy', 'Di'] }), 'a re-created player (new id, same name) still matches');
+    ok(!sameFour(room(), { ids: ['p1', 'p2', 'p3', 'p5'], names: ['Ann', 'Bo', 'Cy', 'Ed'] }), 'a different fourth player');
+    const sel = (names, i = ids) => ({ ids: i, names });
+    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, room(), sel(four)), { dealer: 2, round: 1, streak: 1 });
+    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, room(), sel(['Cy', 'Ann', 'Bo', 'Di'], ['p3', 'p1', 'p2', 'p4'])).dealer, 0);   // Cy deals and now sits East
+    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, room(), sel(['Ann', 'Bo', 'Cy', 'Ed'], ['p1', 'p2', 'p3', 'p5'])), null);        // a different player: wind table starts again
+    eq(resumeForSeats({ dealer: 2, round: 1, streak: 1 }, room(), sel(['Annie', 'Bo', 'Cy', 'Di'])).dealer, 2);                            // renamed player: still found by id
+    eq(resumeForSeats(null, room(), sel(four)), null);
+    eq([idleText(3600e3), idleText(5 * 3600e3), idleText(72 * 3600e3)], ['1 hour', '5 hours', '3 days']);
   }],
   ['Leaderboard is zero-sum', 'All players’ points across games add up to 0.', () => {
     const rooms = [{ code: 'X', players: ['A', 'B', 'C', 'D'], createdAt: 1 }];
