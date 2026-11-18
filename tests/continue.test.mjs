@@ -1,6 +1,7 @@
 // Run: node tests/continue.test.mjs
 import assert from 'node:assert/strict';
-import { loadContinuation, roomsWith, STALE_MS } from '../js/continue.js';
+import { loadContinuation, roomsWith, STALE_MS, carryOver } from '../js/continue.js';
+import { winDeltas, startOf } from '../js/scoring.js';
 
 let n = 0; const t = async (name, fn) => { await fn(); n++; console.log('  ok -', name); };
 const H = 3600e3; const now = 1_000_000 * H;
@@ -59,5 +60,20 @@ await t('a failing read does not break the page', async () => {
   assert.equal(await loadContinuation(bad, { codes: ['A'], now }), null);
   const denied = { getRoom: async () => room('A'), watchEvents: (c, cb, onErr) => { onErr(new Error('denied')); return () => {}; } };
   assert.equal(await loadContinuation(denied, { code: 'A', now }), null);
+});
+const wd = (winner, shooter, tai, at) => ({ type: 'win', winner, shooter, tai, voided: false, createdAt: at, deltas: winDeltas({ winner, shooter, tai }) });
+await t('points carry over: final points of the earlier game, per player, whatever the new seats', async () => {
+  const r = room('A'); const evs = [wd(0, 1, 3, 1)];                  // Ann +32, Bo -16, Cy -8, Di -8
+  assert.deepEqual(carryOver(r, evs, { ids, names: four }), [32, -16, -8, -8]);
+  assert.deepEqual(carryOver(r, evs, { ids: ['p3', 'p1', 'p4', 'p2'], names: ['Cy', 'Ann', 'Di', 'Bo'] }), [-8, 32, -8, -16]);   // other seats: points follow the person
+  assert.deepEqual(carryOver(r, evs, { ids, names: ['Annie', 'Bo', 'Cy', 'Di'] }), [32, -16, -8, -8]);                            // renamed player
+  assert.equal(carryOver(r, evs, { ids: ['p1', 'p2', 'p3', 'p5'], names: ['Ann', 'Bo', 'Cy', 'Ed'] }), null);                    // not the same four
+});
+await t('a game that started with carried points carries them on (chain of continued tables)', async () => {
+  const second = room('B', { startScores: [32, -16, -8, -8] }); const evs = [wd(1, 0, 2, 1)];
+  const pts = carryOver(second, evs, { ids, names: four });
+  assert.equal(pts.reduce((s, x) => s + x, 0), 0);                    // still zero-sum overall
+  assert.equal(pts[0], 32 + evs[0].deltas[0]);
+  assert.equal(startOf(second, 1), -16); assert.equal(startOf(room('C', { startingScore: 100 }), 2), 100); assert.equal(startOf(room('D'), 0), 0);
 });
 console.log(`\n${n} tests passed`);

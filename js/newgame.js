@@ -3,14 +3,14 @@ import { prefs, zh, myName, setMyName } from './prefs.js';
 import { ruleSets, ruleSet, settingsFor, DEFAULT_ID } from './rulesets.js';
 import { app, getAll, getRoster, invalidateRoster, setCurrentGame, invalidate, recent } from './data.js';
 import { esc, toast, sheet, closeSheet, fmtDate, WIND_EN, WIND_ZH } from './ui.js';
-import { loadContinuation, resumeText, seatsFor, sameFour, playsIn, roomsWith, resumeForSeats, idleText } from './continue.js';
+import { loadContinuation, resumeText, seatsFor, sameFour, playsIn, roomsWith, resumeForSeats, idleText, carryOver } from './continue.js';
 import { gameNumber } from './recap-core.js';
 
 export async function renderNewGame($app, fromCode = '') {
   $app.innerHTML = '<p class="muted center pad">Loading players…</p>';
   let roster = [];
   try { roster = await getRoster(true); } catch (err) { console.error(err); }
-  const f = { seats: [null, null, null, null], start: 0, keeper: myName(), location: '', notes: '', name: '', pin: '', lobby: true, rs: DEFAULT_ID, resume: true };
+  const f = { seats: [null, null, null, null], start: 0, keeper: myName(), location: '', notes: '', name: '', pin: '', lobby: true, rs: DEFAULT_ID, resume: true, carry: true };
   // Continuing a closed game (#/new/CODE): same players in the same seats, same place, and the wind table carries on.
   let from = null; let tip = null; let tipHidden = false;
   if (fromCode) {
@@ -29,6 +29,8 @@ export async function renderNewGame($app, fromCode = '') {
   // The wind table only carries over to exactly the same four players (the dealer moves with their seat).
   const sel = () => ({ ids: f.seats, names: seatNames() });   // who is seated now: directory ids (a renamed player is still the same) and names
   const resumeNow = () => (from && f.resume ? resumeForSeats(from.resume, from.room, sel()) : null);
+  // Points carry over too: everyone starts on their final points of the earlier game (same four players only).
+  const carryNow = () => (from && f.carry ? carryOver(from.room, from.events, sel()) : null);
 
   // Recommendation: the latest game these exact four players actually played (finished, left unfinished, or still in progress).
   let rooms = null; let match = null; let matchKey = '';
@@ -56,7 +58,9 @@ export async function renderNewGame($app, fromCode = '') {
           : !same ? '<p class="small neg">⚠ The players are not the same four any more.</p>' : ''}
         ${from.resume ? (same ? `<label class="check"><input type="checkbox" data-resume ${f.resume ? 'checked' : ''}/> Continue the wind table: <b>${esc(resumeText(resumeForSeats(from.resume, r, sel()), names))}</b></label>`
             : '<p class="small muted">The wind table only continues with the same 4 players, so it will start again at East.</p>')
-          : '<p class="small muted">That game did not track the dealer, so the table starts again at East.</p>'}</section>`;
+          : '<p class="small muted">That game did not track the dealer, so the table starts again at East.</p>'}
+        ${same ? (() => { const pts = carryOver(r, from.events, sel()); return pts ? `<label class="check"><input type="checkbox" data-carry ${f.carry ? 'checked' : ''}/> Carry over the points (instead of the starting score): <b>${names.map((n, i) => `${esc(n)} ${pts[i]}`).join(' · ')}</b></label>` : ''; })()
+          : '<p class="small muted">Points only carry over with the same 4 players, so everyone starts on the starting score.</p>'}</section>`;
     }
     const four = names.every(Boolean);
     let shown = null;
@@ -151,7 +155,7 @@ export async function renderNewGame($app, fromCode = '') {
         const code = await app.store.createRoom({
           name: f.name.trim() || `Mahjong ${new Date().toLocaleDateString()}`,
           players: ps.map((p) => p.name), playerIds: ps.map((p) => p.id), handles: ps.map((p) => p.handle || ''),
-          startingScore: Math.trunc(Number(f.start) || 0), scorekeeper: f.keeper.trim(), location: f.location.trim(), notes: f.notes.trim(),
+          startingScore: Math.trunc(Number(f.start) || 0), ...(carryNow() ? { startScores: carryNow() } : {}), scorekeeper: f.keeper.trim(), location: f.location.trim(), notes: f.notes.trim(),
           settings: { ...settingsFor(f.rs), ...(resumeNow() ? { resume: resumeNow() } : {}) },
           status: f.lobby ? 'lobby' : 'active', hostName: f.keeper.trim() || 'Host', hasPin: !!pin,
           ...(from && sameFour(from.room, sel()) ? { continuesFrom: from.room.code } : {}),
@@ -167,6 +171,7 @@ export async function renderNewGame($app, fromCode = '') {
     const t = e.target;
     if (t.dataset.lobby !== undefined) { f.lobby = t.checked; return; }
     if (t.dataset.resume !== undefined) { f.resume = t.checked; return; }
+    if (t.dataset.carry !== undefined) { f.carry = t.checked; return draw(); }
     if (t.dataset.rs !== undefined) { f.rs = t.value; return draw(); }
     if (t.dataset.seat !== undefined) { f.seats[t.dataset.seat] = t.value || null; draw(); return refreshMatch(); }
   };

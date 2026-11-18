@@ -178,6 +178,9 @@ export function adjustDeltas({ from, to, units }) {
 
 export const sum = (arr) => arr.reduce((a, b) => a + b, 0);
 
+/** Points a seat started the game with: carried over from an earlier game (room.startScores) or the shared starting score. */
+export const startOf = (room, seat) => Number(room?.startScores?.[seat] ?? room?.startingScore) || 0;
+
 /**
  * Zero-sum audit over all events.
  * Returns balances (units), per-event problems, and overall status.

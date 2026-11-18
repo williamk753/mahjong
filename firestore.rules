@@ -21,7 +21,7 @@ service cloud.firestore {
     }
     function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
     // The host controls a game. Older games without a host can be controlled by anyone.
-    function isHost(code) { return signedIn() && room(code).get('hostUid', request.auth.uid) == request.auth.uid; }
+    function isHost(code) { return signedIn() && room(code).get('hostUid', room(code).get('createdBy', request.auth.uid)) == request.auth.uid; }
 
     // Leaderboard / backup read all events across games (collection-group query). Read-only.
     match /{path=**}/events/{eventId} {

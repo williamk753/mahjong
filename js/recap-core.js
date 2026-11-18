@@ -1,5 +1,5 @@
 // Pure end-of-game recap: standings, wins by method, what each player won with, all rounds, highest hand.
-import { audit, basePoints, MAX_TAI, INSTANT_KINDS } from './scoring.js';
+import { audit, basePoints, MAX_TAI, INSTANT_KINDS, startOf } from './scoring.js';
 import { byId } from './hand.js';
 
 const WIND = ['East', 'South', 'West', 'North'];
@@ -17,11 +17,10 @@ export function methodText(ev, names) {
 
 export function buildRecap(room, events, rules = {}) {
   const names = room.players;
-  const start = Number(room.startingScore) || 0;
   const a = audit(events);
   const players = names.map((name, seat) => ({
     seat, name, handle: room.handles?.[seat] || '', wind: WIND[seat], windZh: WZH[seat],
-    net: a.balances[seat], points: start + a.balances[seat],
+    net: a.balances[seat], points: startOf(room, seat) + a.balances[seat],
     wins: 0, selfDraws: 0, discardWins: 0, payAll: 0, shots: 0, kongs: 0, winsDetail: [],
   }));
   const rounds = []; let n = 0; let highest = null;

@@ -1,5 +1,5 @@
 // Live game table: seats, dealer, record win / instant payout / draw / manual adjust, audit log, undo, finish.
-import { audit, basePoints, winDeltas, instantDeltas, manualDeltas, INSTANT_KINDS, BAO_REASONS, DEFAULT_SETTINGS, MAX_TAI } from './scoring.js';
+import { audit, basePoints, winDeltas, instantDeltas, manualDeltas, INSTANT_KINDS, BAO_REASONS, DEFAULT_SETTINGS, MAX_TAI, startOf } from './scoring.js';
 import { dealerState, tableSettings, WIND_NAMES, mergeRules } from './rules.js';
 import { prefs, zh, unit, myName, setMyName, rulesDiff } from './prefs.js';
 import { openSim } from './sim.js';
@@ -24,10 +24,12 @@ const cap = () => S().taiCap || MAX_TAI;
 const u = () => esc(unit());
 const pname = (i) => esc(v.room.players[i]);
 const start = () => Number(v.room.startingScore) || 0;
+const startAt = (i) => startOf(v.room, i);                 // a continued table starts each player on their carried-over points
+const startNote = () => (v.room.startScores ? 'their starting points' : String(start()));
 const readOnly = () => v.room.status && v.room.status !== 'active';
 const myUid = () => app.store.uid?.() || '';
 /** Only the host (the phone that created the game, or whoever it was handed to) can change scores. Old games without a host stay open. */
-const isHost = () => !v.room.hostUid || v.room.hostUid === myUid();
+const isHost = () => { const h = v.room.hostUid || v.room.createdBy; return !h || h === myUid(); }; // the creator's id is saved on the game; a game with neither stays open
 const canEdit = () => !readOnly() && isHost();
 const me = () => v.members.find((m) => m.uid === myUid() || m.id === myUid());
 const mySeat = () => { const m = me(); return m && Number.isInteger(m.seat) && m.seat >= 0 ? m.seat : null; };
@@ -112,7 +114,7 @@ function render($app) {
         <div class="seat-top"><span class="wind-badge">${WIND_ZH[w]}</span><span class="seat-wind">${WIND_EN[w].toUpperCase()}</span>${dealer ? `<span class="dtag">${zh('庄')}${ds.streak ? '+' + ds.streak : ''} Dealer</span>` : ''}</div>
         <div class="seat-name">${avatar(r.players[i], 'sm')}<span><b>${pname(i)}</b>${r.handles?.[i] ? `<small>“${esc(r.handles[i])}”</small>` : ''}</span></div>
         <div class="small muted">🌸 #${w + 1} ${FLOWER[w]}</div>
-        <div class="seat-score"><div><small>Score</small><b>${start() + a.balances[i]}</b></div><div><small>diff</small><b class="${cls(a.balances[i])}">${sign(a.balances[i])}</b></div>
+        <div class="seat-score"><div><small>Score</small><b>${startAt(i) + a.balances[i]}</b></div><div><small>diff</small><b class="${cls(a.balances[i])}">${sign(a.balances[i])}</b></div>
           <div><small>wins</small><b>${wins[i]}W</b></div><div><small>last</small><b>${lastTai[i] != null ? lastTai[i] + ' Tai' : '–'}</b></div></div>
       </div>`; }).join('')}</div>
 
@@ -123,7 +125,7 @@ function render($app) {
       <button data-act="instant"><span>⚡</span><b>Instant payout</b><small>Kongs & flowers</small></button>
       <button data-act="draw"><span>🔁</span><b>Draw round</b><small>Dead wall (0 pts)</small></button>
       <button data-act="adjust"><span>⚖️</span><b>Manual adjust</b><small>${zh('调分')} zero-sum</small></button>
-      <button data-act="reset" class="warn"><span>🔄</span><b>Reset scores</b><small>everyone back to ${start()}</small></button>
+      <button data-act="reset" class="warn"><span>🔄</span><b>Reset scores</b><small>everyone back to ${startNote()}</small></button>
     </div>
     <button type="button" class="linkbtn" data-act="help">💡 How do scores update?</button>`}
     ${v.showHelp ? `<section class="card help"><h3>4 ways to update scores</h3><ol class="steps small">
@@ -219,7 +221,7 @@ async function onClick(e, $app) {
   if (act === 'reset') {
     const a = audit(v.events);
     if (a.balances.every((x) => x === 0)) return toast('Scores are already at the starting points');
-    if (!await confirmBox({ title: '🔄 Reset all scores?', text: `Every player goes back to <b>${start()}</b>. This is saved as one zero-sum adjustment, so the history is kept — you can undo it with <b>Undo last</b>.`, ok: 'Reset scores', danger: true })) return;
+    if (!await confirmBox({ title: '🔄 Reset all scores?', text: `Every player goes back to <b>${startNote()}</b>. This is saved as one zero-sum adjustment, so the history is kept — you can undo it with <b>Undo last</b>.`, ok: 'Reset scores', danger: true })) return;
     return save({ type: 'adjust', deltas: a.balances.map((x) => -x), reason: 'reset', reasonText: 'Reset all scores to starting points' }, 'Scores reset — tap Undo last to revert');
   }
   if (act === 'finish') {
@@ -392,9 +394,9 @@ function adjustSheet() {
   const total = () => f.d.reduce((x, y) => x + y, 0);
   const body = () => `
     <div class="balance ${total() === 0 ? 'ok' : 'bad'} blockbal">${total() === 0 ? '✓ Balanced (net sum = 0)' : `✗ Net sum = ${sign(total())} — must be 0`}</div>
-    <div class="row-between"><span class="small muted">Quick tools</span><button type="button" class="btn sm" data-resetall>Reset all to starting score (${start()})</button></div>
+    <div class="row-between"><span class="small muted">Quick tools</span><button type="button" class="btn sm" data-resetall>Reset all to starting score (${startNote()})</button></div>
     ${[0, 1, 2, 3].map((i) => `<div class="adjrow">
-      <div class="row-between"><span>${avatar(v.room.players[i], 'sm')} <b>${pname(i)}</b><br><small class="muted">Current ${start() + a.balances[i]} → ${start() + a.balances[i] + f.d[i]}</small></span>
+      <div class="row-between"><span>${avatar(v.room.players[i], 'sm')} <b>${pname(i)}</b><br><small class="muted">Current ${startAt(i) + a.balances[i]} → ${startAt(i) + a.balances[i] + f.d[i]}</small></span>
         <input type="number" class="adjval" data-i="${i}" value="${f.d[i]}" step="1" aria-label="Adjustment for ${pname(i)}" /></div>
       <div class="adjbtns">${[-10, -5, -2, 2, 5, 10].map((n) => `<button type="button" data-i="${i}" data-n="${n}" class="${n < 0 ? 'neg' : 'pos'}">${sign(n)}</button>`).join('')}</div></div>`).join('')}
     <label class="field"><span>Reason / remarks *</span><select data-reason><option value="">— choose —</option>${ADJUST_REASONS.map(([k, l]) => `<option value="${k}" ${f.reason === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>

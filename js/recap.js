@@ -12,7 +12,8 @@ export async function renderRecap($app, code) {
   const room = await app.store.getRoom(code);
   if (!room) { $app.innerHTML = '<div class="card center">Game not found. <a href="#/">Home</a></div>'; return; }
   // Same rule as the table: only the host (or anyone, in an old game without a host) may change the scores.
-  const canEdit = !room.hostUid || room.hostUid === (app.store.uid?.() || '');
+  const host = room.hostUid || room.createdBy;
+  const canEdit = !host || host === (app.store.uid?.() || '');
   let events = []; let r;
   const load = async () => {
     await new Promise((res) => { const un = app.store.watchEvents(code, (evs) => { events = evs; res(); setTimeout(() => un && un(), 0); }); });

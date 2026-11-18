@@ -1,6 +1,7 @@
 // Continue a table: work out where the wind table stopped (dealer, round wind, dealer streak) so a new game can pick it up.
 // Pure helpers + one loader; no DOM.
 import { dealerState, WIND_NAMES } from './rules.js';
+import { audit, startOf } from './scoring.js';
 
 export const CLOSED = ['completed', 'cancelled'];
 export const STALE_MS = 8 * 3600e3; // an open game with no activity for this long was left unfinished
@@ -45,6 +46,21 @@ export function resumeForSeats(resume, room, sel) {
   let dealer = prevId ? sel.ids.indexOf(prevId) : -1;
   if (dealer < 0) dealer = sel.names.findIndex((n) => norm(n) === norm(room.players[resume.dealer]));
   return dealer < 0 ? null : { ...resume, dealer };
+}
+
+/**
+ * Points each player of the new table starts with when continuing: their final points of the earlier game
+ * (its own starting points + what they won or lost). One number per new seat, or null unless it is the same four players.
+ */
+export function carryOver(room, events, sel) {
+  if (!sameFour(room, sel)) return null;
+  const bal = audit(events).balances;
+  const out = sel.names.map((name, i) => {
+    let s = sel.ids[i] ? (room.playerIds || []).indexOf(sel.ids[i]) : -1;
+    if (s < 0) s = room.players.findIndex((p) => norm(p) === norm(name));
+    return s < 0 ? null : startOf(room, s) + bal[s];
+  });
+  return out.every((x) => x !== null) ? out : null;
 }
 
 /** "South round · dealer Cara (连+1)" */
