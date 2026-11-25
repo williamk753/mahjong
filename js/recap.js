@@ -33,6 +33,7 @@ export async function renderRecap($app, code) {
         <div class="recapstats"><div><small>Rounds</small><b>${r.roundCount}</b></div><div><small>Duration</small><b>${fmtDuration(r.durationMs)}</b></div><div><small>Status</small><b>${esc(r.status)}</b></div></div>
         <div class="small">${esc(room.name || '')}${room.location ? ` · ${esc(room.location)}` : ''} · ${fmtDate(room.createdAt, true)}</div>
       </section>
+      ${app.admin ? `<a class="btn gold block" href="#/t/${esc(code)}">👑 Admin: edit rounds — open the Audit log</a>` : ''}
       <div class="tabs pill">${[['standings', 'Standings & points'], ['won', 'What they won with'], ['rounds', 'All rounds']].map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
       <section class="card">${tab === 'standings' ? standings(r, u) : tab === 'won' ? won(r, u, canEdit) : rounds(r)}</section>
       ${r.highest ? `<section class="card highest"><div class="small muted">Highest hand</div><div class="hh"><span class="big">${r.highest.tai} TAI</span>
