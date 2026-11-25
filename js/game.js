@@ -41,7 +41,7 @@ const roundNo = () => v.events.filter((e) => !e.voided && (e.type === 'win' || e
 
 export function stopGame() { v.unsubs.forEach((f) => f && f()); v.unsubs = []; closeSheet(); }
 
-export async function openGame($app, code) {
+export async function openGame($app, code, { log = false } = {}) {
   stopGame();
   $app.innerHTML = `<p class="muted center pad">Opening game ${esc(code)}…</p>`;
   let room = null;
@@ -54,7 +54,8 @@ export async function openGame($app, code) {
   remember(room); if (['active', 'lobby'].includes(room.status || 'active')) setCurrentGame(code);
   const draw = () => render($app);
   draw();
-  v.unsubs.push(app.store.watchEvents(code, (evs) => { v.events = evs; invalidate(); draw(); }, (err) => toast('Live sync error: ' + err.message)));
+  let openLog = log;   // #/t/CODE/log: open the Audit log once the rounds have arrived
+  v.unsubs.push(app.store.watchEvents(code, (evs) => { v.events = evs; invalidate(); draw(); if (openLog) { openLog = false; logSheet(); } }, (err) => toast('Live sync error: ' + err.message)));
   v.unsubs.push(app.store.watchRoom(code, (r) => { const old = v.room; v.room = { ...v.room, ...r }; roomChanged(old, v.room); draw(); }));
   if (app.store.watchMembers) v.unsubs.push(app.store.watchMembers(code, (list) => {
     v.members = list;

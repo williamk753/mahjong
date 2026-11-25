@@ -88,7 +88,7 @@ async function route() {
       case 'game': return await renderGameTab($app);
       case 't': {
         const code = (parts[1] || '').toUpperCase();
-        return parts[2] === 'recap' ? await renderRecap($app, code) : await openGame($app, code);
+        return parts[2] === 'recap' ? await renderRecap($app, code) : await openGame($app, code, { log: parts[2] === 'log' });   // #/t/CODE/log opens the Audit log straight away
       }
       case 'score': return renderCalc($app);
       case 'ranking': case 'leaderboard': return await renderLeaderboard($app);
