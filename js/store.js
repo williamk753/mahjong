@@ -40,6 +40,11 @@ async function createFirebaseStore() {
   const a = auth.getAuth(app);
   await auth.signInAnonymously(a);
   const uid = () => a.currentUser?.uid || null;
+  const has = async (col) => { try { return (await fs.getDoc(fs.doc(db, col, uid()))).exists(); } catch { return false; } };
+  const wrongPw = (err) => {
+    if (!/permission/i.test(err.code || err.message)) return err;
+    const e = new Error('Wrong password'); e.code = 'wrong-password'; return e;
+  };
 
   const roomRef = (code) => fs.doc(db, 'rooms', code);
   const eventsCol = (code) => fs.collection(db, 'rooms', code, 'events');
@@ -47,10 +52,20 @@ async function createFirebaseStore() {
   return {
     mode: 'cloud',
     /* ---- 🔒 app password (checked by Firestore rules against config/access) ---- */
-    async hasAccess() { try { return (await fs.getDoc(fs.doc(db, 'access', uid()))).exists(); } catch { return false; } },
+    // each check on its own, so a rules file that does not know `admins` yet can never lock everybody out
+    async hasAccess() { return (await has('access')) || (await has('admins')); },
+    /** 👑 Super admin: this phone entered the admin password (config/admin, checked by the rules). */
+    async isAdmin() { return has('admins'); },
+    async becomeAdmin(pw) {
+      try { await fs.setDoc(fs.doc(db, 'admins', uid()), { key: String(pw), at: Date.now() }); }
+      catch (err) { throw wrongPw(err); }
+    },
+    async dropAdmin() { await fs.deleteDoc(fs.doc(db, 'admins', uid())); },
+    /** The one password box: the admin password opens the app as super admin, the group password opens it as a normal player. */
     async unlock(pw) {
-      try { await fs.setDoc(fs.doc(db, 'access', uid()), { key: String(pw), at: Date.now() }); }
-      catch (err) { if (/permission/i.test(err.code || err.message)) { const e = new Error('Wrong password'); e.code = 'wrong-password'; throw e; } throw err; }
+      try { await this.becomeAdmin(pw); return { admin: true }; } catch (err) { if (err.code !== 'wrong-password') throw err; }
+      try { await fs.setDoc(fs.doc(db, 'access', uid()), { key: String(pw), at: Date.now() }); return { admin: false }; }
+      catch (err) { throw wrongPw(err); }
     },
     uid,
     /* ---- members (who is in the room, which seat) ---- */
@@ -193,7 +208,11 @@ function createLocalStore() {
       const h = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(pw))))].map((b) => b.toString(16).padStart(2, '0')).join('');
       if (h !== 'b7158b64a98516b31d0c23609f69265a868c594dda5b3c8da9e13159e209c9b6') { const e = new Error('Wrong password'); e.code = 'wrong-password'; throw e; }
       try { localStorage.setItem('mjsg-demo-access', '1'); } catch {}
+      return { admin: false };
     },
+    async isAdmin() { return false; },   // super admin needs the shared database (its password is kept there, not in the code)
+    async becomeAdmin() { throw new Error('Super admin needs the shared cloud database'); },
+    async dropAdmin() {},
     // Demo: one identity per browser tab, so two tabs can play host + player on one computer.
     uid: () => { try { let id = sessionStorage.getItem('mjsg-demo-uid'); if (!id) { id = newId('u_'); sessionStorage.setItem('mjsg-demo-uid', id); } return id; } catch { return 'u_local'; } },
     async joinRoom(code, m) { const db = load(); const r = db.rooms[code]; r.members = { ...(r.members || {}), [this.uid()]: { ...(r.members?.[this.uid()] || {}), ...m, uid: this.uid(), at: Date.now() } }; save(db); notify(); },

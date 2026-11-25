@@ -29,8 +29,10 @@ const startNote = () => (v.room.startScores ? 'their starting points' : String(s
 const readOnly = () => v.room.status && v.room.status !== 'active';
 const myUid = () => app.store.uid?.() || '';
 /** Only the host (the phone that created the game, or whoever it was handed to) can change scores. Old games without a host stay open. */
-const isHost = () => { const h = v.room.hostUid || v.room.createdBy; return !h || h === myUid(); }; // the creator's id is saved on the game; a game with neither stays open
-const canEdit = () => !readOnly() && isHost();
+const isRealHost = () => { const h = v.room.hostUid || v.room.createdBy; return !h || h === myUid(); }; // the creator's id is saved on the game; a game with neither stays open
+/** 👑 A super admin (logged in with the admin password) has every host power on every game, finished or not. */
+const isHost = () => app.admin || isRealHost();
+const canEdit = () => isHost() && (app.admin || !readOnly());
 const me = () => v.members.find((m) => m.uid === myUid() || m.id === myUid());
 const mySeat = () => { const m = me(); return m && Number.isInteger(m.seat) && m.seat >= 0 ? m.seat : null; };
 const joinUrl = () => location.href.split('#')[0] + '#/t/' + v.room.code;
@@ -94,7 +96,7 @@ function render($app) {
   const rounds = v.events.filter((e) => !e.voided && (e.type === 'win' || e.type === 'draw')).length;
   const payouts = v.events.filter((e) => !e.voided && (e.type === 'instant' || e.type === 'kong')).length;
   const ro = readOnly();
-  const host = isHost(); const ctl = !ro && host;
+  const host = isHost(); const ctl = host && (!ro || app.admin);   // an admin can still fix a finished game
   $app.innerHTML = `
     <section class="gamehead">
       <div class="gh-top"><div><div class="gid">${esc(gameNumber(r))}</div>
@@ -105,10 +107,10 @@ function render($app) {
       <div class="gh-share"><span class="small muted">Code</span> <span class="code">${esc(r.code)}</span><button class="btn sm" data-act="share">🔗 Share</button><button class="btn sm" data-act="qr">📱 QR</button>
         ${r.notes ? `<span class="small muted">📝 ${esc(r.notes)}</span>` : ''}</div>
     </section>
-    ${ro ? '' : hostBar()}
+    ${ro && !app.admin ? '' : hostBar()}
     ${ctl ? pendingCard() : ''}
     ${!ro && !host ? playerPanel() : ''}
-    ${ro ? `<div class="banner">${r.status === 'completed' ? '🏁 This game is finished.' : '⛔ This game was ended.'} <a href="#/t/${esc(r.code)}/recap">View recap →</a></div>` : ''}
+    ${ro ? `<div class="banner">${r.status === 'completed' ? '🏁 This game is finished.' : '⛔ This game was ended.'} <a href="#/t/${esc(r.code)}/recap">View recap →</a>${app.admin ? ' · 👑 as admin you can still edit its rounds' : ''}</div>` : ''}
     <div class="seats">${[0, 1, 2, 3].map((i) => { const w = seatWind(i); const dealer = ds.enabled && ds.dealer === i; return `
       <div class="seat ${dealer ? 'dealer' : ''}">
         <div class="seat-top"><span class="wind-badge">${WIND_ZH[w]}</span><span class="seat-wind">${WIND_EN[w].toUpperCase()}</span>${dealer ? `<span class="dtag">${zh('庄')}${ds.streak ? '+' + ds.streak : ''} Dealer</span>` : ''}</div>
@@ -139,7 +141,7 @@ function render($app) {
       <div class="actgrid three">
         <button data-act="log"><span>📜</span><b>Audit log</b><small>${v.events.length} entries</small></button>
         ${!ctl ? '' : `<button data-act="undo"><span>↩️</span><b>Undo last</b><small>void latest</small></button>
-        <button data-act="finish" class="good"><span>🏁</span><b>Finish game</b><small>recap & share</small></button>`}
+        ${ro ? '' : '<button data-act="finish" class="good"><span>🏁</span><b>Finish game</b><small>recap & share</small></button>'}`}
       </div>
       ${ro ? `<a class="btn block" href="#/t/${esc(r.code)}/recap">🏆 View recap</a>` : ctl ? `<button class="btn block danger" data-act="quit">End / quit without finishing</button>` : ''}
       ${recentList()}
@@ -504,6 +506,9 @@ function requestsChanged(old, list) {
 }
 
 function hostBar() {
+  if (app.admin && !isRealHost()) {
+    return `<div class="hostbar"><span>👑 <b>Super admin</b> — you can edit every round, winner and score in this game${v.room.hostName ? ` · host is ${esc(v.room.hostName)}` : ''}</span></div>`;
+  }
   if (isHost()) {
     return `<div class="hostbar"><span>👑 <b>You are the host</b> — only you can record scores${v.room.hasPin ? '' : ' · <span class="neg">no PIN set</span>'}</span><button class="btn sm" data-act="hosttools">Host tools</button></div>`;
   }
@@ -550,7 +555,7 @@ async function pickSeat(i) {
   const name = i >= 0 ? v.room.players[i] : (myName() || 'Guest');
   if (i >= 0) setMyName(name);
   await app.store.joinRoom(v.room.code, { seat: i, name });
-  if (isHost() && i >= 0) await app.store.updateRoom(v.room.code, { hostName: name }).catch(() => {});
+  if (isRealHost() && !app.admin && i >= 0) await app.store.updateRoom(v.room.code, { hostName: name }).catch(() => {});
   toast(i >= 0 ? `You are ${name}` : 'Watching only');
 }
 

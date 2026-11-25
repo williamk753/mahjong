@@ -29,7 +29,7 @@ function header() {
   const r = prefs.rules;
   document.getElementById('capBadge').textContent = `TAI ${r.taiCap >= 13 ? '∞' : r.taiCap}`;
   const b = document.getElementById('modeBadge');
-  b.textContent = app.storeError ? 'Offline' : isDemo ? 'Demo · this phone' : app.store ? 'Cloud sync' : 'Connecting…';
+  b.textContent = app.storeError ? 'Offline' : isDemo ? 'Demo · this phone' : app.store ? `Cloud sync${app.admin ? ' · 👑 Admin' : ''}` : 'Connecting…';
   b.className = 'badge ' + (app.storeError ? 'bad' : isDemo ? 'demo' : 'ok');
 }
 
@@ -56,8 +56,8 @@ function showLock(msg = '') {
     e.preventDefault();
     const pw = new FormData(e.target).get('pw'); const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Checking…';
     try {
-      await app.store.unlock(pw);
-      app.unlocked = true; document.body.classList.remove('locked');
+      const res = await app.store.unlock(pw);
+      app.unlocked = true; app.admin = !!res?.admin; document.body.classList.remove('locked');
       await loadRules(app.store); watchRules(); header(); route();
     } catch (err) {
       console.error(err);
@@ -143,10 +143,11 @@ function watchRules() {
   route();
   updateBell();
   document.getElementById('bell')?.addEventListener('click', openNotifications);
+  window.addEventListener('mjsg-admin', header);   // admin login / logout from the More menu updates the badge
   try {
     app.store = await createStore();
     app.unlocked = await app.store.hasAccess();
-    if (app.unlocked) { await loadRules(app.store); watchRules(); }
+    if (app.unlocked) { app.admin = await app.store.isAdmin(); await loadRules(app.store); watchRules(); }
   } catch (err) { console.error(err); app.storeError = err; }
   header();
   route();

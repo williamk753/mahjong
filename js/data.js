@@ -1,5 +1,5 @@
 // App-wide state: the store, a short-lived cache of all data, and the recent-games list on this device.
-export const app = { store: null, storeError: null };
+export const app = { store: null, storeError: null, admin: false }; // admin: this phone is logged in as super admin
 
 let cache = null; // { rooms, eventsByRoom, players, loadedAt }
 export async function getAll(force = false) {

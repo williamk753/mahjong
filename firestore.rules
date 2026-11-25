@@ -7,7 +7,15 @@ service cloud.firestore {
     // (its access/{uid} doc exists). The password itself lives in config/access — set it in the
     // Firebase console, it is never readable by the app and is not in this file.
     function authed() { return request.auth != null; }
-    function signedIn() { return authed() && exists(/databases/$(database)/documents/access/$(request.auth.uid)); }
+    // 👑 Super admin: a phone that entered the admin password (kept in config/admin, set in the Firebase console, never in the code)
+    // has an admins/{uid} doc holding the password it typed. It counts only while that still equals config/admin, so changing the
+    // admin password in the console cuts every admin off. Admins can open the app and edit any game, round or score.
+    function isAdmin() {
+      return authed() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/config/admin)
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.key == get(/databases/$(database)/documents/config/admin).data.key;
+    }
+    function signedIn() { return authed() && (exists(/databases/$(database)/documents/access/$(request.auth.uid)) || isAdmin()); }
 
     match /config/{doc} {
       allow read, write: if false;
@@ -19,9 +27,16 @@ service cloud.firestore {
         && request.resource.data.key == get(/databases/$(database)/documents/config/access).data.key;
       allow delete: if false;
     }
+    match /admins/{uid} {
+      allow read: if authed() && uid == request.auth.uid;
+      allow create, update: if authed() && uid == request.auth.uid
+        && exists(/databases/$(database)/documents/config/admin)
+        && request.resource.data.key == get(/databases/$(database)/documents/config/admin).data.key;
+      allow delete: if authed() && uid == request.auth.uid;   // leave admin mode on this phone
+    }
     function room(code) { return get(/databases/$(database)/documents/rooms/$(code)).data; }
-    // The host controls a game. Older games without a host can be controlled by anyone.
-    function isHost(code) { return signedIn() && room(code).get('hostUid', room(code).get('createdBy', request.auth.uid)) == request.auth.uid; }
+    // The host controls a game (an admin controls every game). Older games with no host and no creator can be controlled by anyone.
+    function isHost(code) { return signedIn() && (isAdmin() || room(code).get('hostUid', room(code).get('createdBy', request.auth.uid)) == request.auth.uid); }
 
     // Leaderboard / backup read all events across games (collection-group query). Read-only.
     match /{path=**}/events/{eventId} {

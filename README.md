@@ -18,6 +18,7 @@ Live, shared score tracker for a 4-player Singapore mahjong table — free to ho
 | 🏆 Ranking | **All players** (points accumulated over every game) or **By table (4 players)**: pick a set of 4 players and see their ranking, total points and a game-by-game points grid; Today / week / month / year / all-time; rank by points, avg per game, wins, win rate, highest Tai, self-draws, pay-all wins, games played, #1 finishes, safest |
 | 👥 Players | Directory with handles ("Dragon Master"), career stats, profile with recent games |
 | 📖 Rules & Tai | Claiming priority, single-primary-hand rule, Tai → points, pay-all triggers, full Tai catalogue with a sample hand picture for each pattern, calculator, 🀄 tile picture guide |
+| 👑 Super admin | Log in with the admin password (More menu, or the lock screen) to edit any game: change the winner, who discarded, patterns / Tai or void any round, even in finished games. The password lives in Firestore `config/admin`, not in the code; changing it there cuts every admin off |
 | ⚙️ House rules | Min Tai, Tai cap (3–10 or no cap), special-win Tai, double wind, score label, auto dealer + draw rule, instant payout amounts, pay-all multiplier, final-wall threshold, Tai per pattern, show/hide Chinese |
 | 🧪 Test suite | 24 in-app business-rule checks (also run in Node) |
 | 💾 Backup | Download / copy JSON, upload / paste JSON (merge), reset rankings (season), sample tournament (demo mode) |
