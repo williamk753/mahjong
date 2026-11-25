@@ -48,7 +48,7 @@ export async function renderRecap($app, code) {
           <button class="btn" data-s="csv">⬇ Export CSV</button>
         </div>
       </section>
-      <div class="row-gap">${['completed', 'cancelled'].includes(room.status) ? `<a class="btn primary block" href="#/new/${esc(code)}">↩ Continue this table</a><a class="btn block" href="#/new">＋ Start a new game</a>`
+      <div class="row-gap">${['completed', 'cancelled'].includes(room.status) ? `<a class="btn primary block" href="#/new/${esc(code)}">↩ Continue this table</a>${app.admin ? `<a class="btn block" href="#/t/${esc(code)}">👑 Admin: edit rounds (Audit log)</a>` : `<a class="btn block" href="#/t/${esc(code)}">📜 View the table & audit log</a>`}<a class="btn block" href="#/new">＋ Start a new game</a>`
         : `<a class="btn primary block" href="#/new">＋ Start a new game</a>`}${room.status === 'active' ? `<a class="btn block" href="#/t/${esc(code)}">Back to the table</a>` : ''}</div>
       ${r.balanced ? '<p class="small pos center">✓ Zero-sum balanced</p>' : `<p class="small neg center">✗ Not balanced (Σ ${r.total})</p>`}`;
   };
